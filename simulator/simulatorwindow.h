@@ -8,6 +8,9 @@
 class Device;
 class QLabel;
 class QPushButton;
+class DeviceServer;
+class QPlainTextEdit;
+class QSpinBox;
 
 class SimulatorWindow : public QWidget
 {
@@ -20,8 +23,12 @@ private:
     void buildUi();
     void onSampleGenerated(const Sample& sample);
     void onToggleClicked();
+    void onListenClicked();
+    void onClientCountChanged(int count);
+    void appendLog(const QString& text);
 
     Device* m_device;
+    DeviceServer* m_server;
 
     QLabel* m_nameLabel;
     QLabel* m_statusLabel;
@@ -31,6 +38,10 @@ private:
     QLabel* m_timestampLabel;
 
     QPushButton* m_toggleButton;
+    QSpinBox*       m_portSpinBox;
+    QPushButton*    m_listenButton;
+    QLabel*         m_clientCountLabel;
+    QPlainTextEdit* m_logEdit;
 };
 
 #endif // SIMULATORWINDOW_H

@@ -12,7 +12,7 @@ class Device : public QObject
 {
     Q_OBJECT
 public:
-    explicit Device(int id,const QString& name,QObject *parent = nullptr);
+    explicit Device(int id,const QString& name,QObject* parent = nullptr);
 
     int id()const;
     QString name()const;
@@ -23,14 +23,14 @@ public slots:
     void stop();
 
 signals:
-    void sampleGenerated(const Sample &sample);
+    void sampleGenerated(const Sample& sample);
 
 private:
     void generateSample();
 
     int m_id;
     QString m_name;
-    QTimer *m_timer;
+    QTimer* m_timer;
 
     double m_temperature;
     double m_pressure;

@@ -4,6 +4,8 @@ qt_add_executable(simulator
     sample.h
     device.h
     device.cpp
+    deviceserver.h
+    deviceserver.cpp
     simulatorwindow.h
     simulatorwindow.cpp
 )
@@ -13,4 +15,5 @@ target_link_libraries(simulator
         Qt::Core
         Qt::Gui
         Qt::Widgets
+        Qt::Network
 )
