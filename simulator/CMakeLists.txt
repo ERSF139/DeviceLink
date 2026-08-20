@@ -1,7 +1,6 @@
 qt_add_executable(simulator
     WIN32
     main.cpp
-    sample.h
     device.h
     device.cpp
     deviceserver.h
@@ -12,6 +11,7 @@ qt_add_executable(simulator
 
 target_link_libraries(simulator
     PRIVATE
+        common
         Qt::Core
         Qt::Gui
         Qt::Widgets

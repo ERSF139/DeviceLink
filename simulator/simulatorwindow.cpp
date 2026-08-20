@@ -1,17 +1,16 @@
 #include "simulatorwindow.h"
 
 #include "device.h"
+#include "deviceserver.h"
 
 #include <QDateTime>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QLabel>
-#include <QPushButton>
-#include <QVBoxLayout>
-#include "deviceserver.h"
-
 #include <QPlainTextEdit>
+#include <QPushButton>
 #include <QSpinBox>
+#include <QVBoxLayout>
 
 SimulatorWindow::SimulatorWindow(QWidget* parent)
     : QWidget(parent)
