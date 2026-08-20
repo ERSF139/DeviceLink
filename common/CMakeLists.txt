@@ -1,6 +1,15 @@
-add_library(common INTERFACE)
+qt_add_library(common STATIC
+    sample.h
+    protocol.h
+    protocol.cpp
+)
 
 target_include_directories(common
-    INTERFACE
+    PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(common
+    PUBLIC
+        Qt::Core
 )
