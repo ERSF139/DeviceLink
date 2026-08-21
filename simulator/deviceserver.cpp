@@ -59,7 +59,6 @@ void DeviceServer::broadcastSample(const Sample& sample)
                                           Protocol::encodeSample(sample));
 
     for (QTcpSocket* socket : m_clients){
-        //socket->write(QByteArray("JUNK"));    // 临时：故意制造脏数据
         socket->write(frame);
         }
 }
