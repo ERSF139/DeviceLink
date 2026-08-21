@@ -1,6 +1,5 @@
 #include "deviceclient.h"
 
-#include <QStringList>
 #include <QTcpSocket>
 
 DeviceClient::DeviceClient(QObject* parent)
@@ -11,7 +10,7 @@ DeviceClient::DeviceClient(QObject* parent)
             this,&DeviceClient::onReadyRead);
 
     connect(m_socket,&QTcpSocket::connected,this,[this](){
-        m_buffer.clear();
+        m_parser.reset();
         emit logMessage("已连接到服务器");
         emit connectedChanged(true);
     });
@@ -47,43 +46,37 @@ void DeviceClient::disconnectFromServer()
 
 void DeviceClient::onReadyRead()
 {
-    m_buffer.append(m_socket->readAll());      // 1. 新数据无条件追加到缓冲区
+    const int droppedBefore = m_parser.droppedBytes();
 
-    int index = m_buffer.indexOf('\n');        // 2. 找第一个换行符
-    while (index >= 0) {                       // 3. 只要找得到，就说明有完整的一行
-        const QByteArray line = m_buffer.left(index);   // 取出这一行（不含 \n）
-        m_buffer.remove(0, index + 1);                  // 从缓冲区删掉它和那个 \n
-        handleLine(line);
-        index = m_buffer.indexOf('\n');                 // 继续找下一个
-    }
-    // 循环结束时，缓冲区里剩下的是不完整的半行，原封不动留到下次
+    m_parser.append(m_socket->readAll());
+
+    while (const auto frame = m_parser.nextFrame())
+        handleFrame(*frame);
+
+    const int dropped = m_parser.droppedBytes() - droppedBefore;
+    if (dropped > 0)
+        emit logMessage(QString("丢弃 %1 个无法识别的字节").arg(dropped));
 }
 
-void DeviceClient::handleLine(const QByteArray& line)
+void DeviceClient::handleFrame(const Protocol::Frame& frame)
 {
-    const QString text = QString::fromUtf8(line).trimmed();
-    if(text.isEmpty())
-        return;
-
-    const QStringList fields = text.split(',');
-    if(fields.size() != 5){
-        emit logMessage(QString("丢弃字段数不对的数据:%1").arg(text));
-        return;
+    switch (frame.type) {
+    case Protocol::MessageType::Sample: {
+        const auto sample = Protocol::decodeSample(frame.payload);
+        if (!sample) {
+            emit logMessage("采样帧载荷长度异常，已丢弃");
+            return;
+        }
+        emit sampleReceived(*sample);
+        break;
     }
 
-    bool ok0 = false, ok1 = false, ok2 = false, ok3 = false, ok4 = false;
+    case Protocol::MessageType::Heartbeat:
+        break;                                  // 第 9 步再处理
 
-    Sample sample;
-    sample.deviceId    = fields.at(0).toInt(&ok0);
-    sample.timestampMs = fields.at(1).toLongLong(&ok1);
-    sample.temperature = fields.at(2).toDouble(&ok2);
-    sample.pressure    = fields.at(3).toDouble(&ok3);
-    sample.vibration   = fields.at(4).toDouble(&ok4);
-
-    if (!(ok0 && ok1 && ok2 && ok3 && ok4)) {
-        emit logMessage(QString("丢弃无法解析的数据：%1").arg(text));
-        return;
+    default:
+        emit logMessage(QString("忽略未知消息类型 0x%1")
+                            .arg(static_cast<quint8>(frame.type), 2, 16, QChar('0')));
+        break;
     }
-
-     emit sampleReceived(sample);
 }

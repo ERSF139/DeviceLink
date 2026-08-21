@@ -1,9 +1,10 @@
 #ifndef DEVICECLIENT_H
 #define DEVICECLIENT_H
 
+#include "frameparser.h"
+#include "protocol.h"
 #include "sample.h"
 
-#include <QByteArray>
 #include <QObject>
 
 class QTcpSocket;
@@ -26,10 +27,10 @@ signals:
 
 private:
     void onReadyRead();
-    void handleLine(const QByteArray& line);
+    void handleFrame(const Protocol::Frame& frame);
 
     QTcpSocket* m_socket;
-    QByteArray  m_buffer;
+    FrameParser m_parser;
 };
 
 #endif // DEVICECLIENT_H

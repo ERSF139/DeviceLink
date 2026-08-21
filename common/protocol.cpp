@@ -9,14 +9,14 @@ namespace {
 
 constexpr int kSamplePayloadSize = 4 + 8 + 8 + 8 + 8;   // id + 时间戳 + 三个 double = 36
 
+} // namespace
+
 quint16 readUint16BE(const QByteArray& data, int offset)
 {
     const auto high = static_cast<quint8>(data.at(offset));
     const auto low  = static_cast<quint8>(data.at(offset + 1));
     return static_cast<quint16>((high << 8) | low);
 }
-
-} // namespace
 
 quint16 crc16(const QByteArray& data)
 {
@@ -136,5 +136,4 @@ std::optional<Sample> decodeSample(const QByteArray& payload)
     sample.vibration   = vibration;
     return sample;
 }
-
 } // namespace Protocol

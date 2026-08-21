@@ -1,4 +1,5 @@
 #include "deviceserver.h"
+#include "protocol.h"
 
 #include <QHostAddress>
 #include <QTcpServer>
@@ -54,16 +55,13 @@ void DeviceServer::broadcastSample(const Sample& sample)
     if (m_clients.isEmpty())
         return;
 
-    const QByteArray line = QString("%1,%2,%3,%4,%5\n")
-                                .arg(sample.deviceId)
-                                .arg(sample.timestampMs)
-                                .arg(sample.temperature, 0, 'f', 2)
-                                .arg(sample.pressure,    0, 'f', 2)
-                                .arg(sample.vibration,   0, 'f', 3)
-                                .toUtf8();
+    const QByteArray frame = Protocol::buildFrame(Protocol::MessageType::Sample,
+                                          Protocol::encodeSample(sample));
 
-    for (QTcpSocket* socket : m_clients)
-        socket->write(line);
+    for (QTcpSocket* socket : m_clients){
+        //socket->write(QByteArray("JUNK"));    // 临时：故意制造脏数据
+        socket->write(frame);
+        }
 }
 
 void DeviceServer::onNewConnection()

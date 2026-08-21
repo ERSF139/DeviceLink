@@ -2,6 +2,8 @@ qt_add_library(common STATIC
     sample.h
     protocol.h
     protocol.cpp
+    frameparser.h
+    frameparser.cpp
 )
 
 target_include_directories(common

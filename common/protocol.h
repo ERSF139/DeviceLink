@@ -33,6 +33,7 @@ struct Frame
 };
 
 quint16 crc16(const QByteArray& data);
+quint16 readUint16BE(const QByteArray& data, int offset);
 
 QByteArray           buildFrame(MessageType type, const QByteArray& payload);
 std::optional<Frame> parseFrame(const QByteArray& frame);
