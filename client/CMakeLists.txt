@@ -5,13 +5,15 @@ qt_add_executable(client
     mainwindow.cpp
     deviceclient.h
     deviceclient.cpp
+    devicemodel.h
+    devicemodel.cpp
 )
 
 target_link_libraries(client
     PRIVATE
-        common
-        Qt::Core
-        Qt::Gui
-        Qt::Widgets
-        Qt6::Network
+    common
+    Qt::Core
+    Qt::Gui
+    Qt::Widgets
+    Qt::Network
 )

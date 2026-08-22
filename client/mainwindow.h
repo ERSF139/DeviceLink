@@ -11,6 +11,8 @@ class QLineEdit;
 class QPlainTextEdit;
 class QPushButton;
 class QSpinBox;
+class DeviceModel;
+class QTableView;
 
 class MainWindow : public QWidget
 {
@@ -27,17 +29,13 @@ private:
     void appendLog(const QString& text);
 
     DeviceClient* m_client;
+    DeviceModel* m_model;
+    QTableView* m_deviceView;
 
     QLineEdit*   m_hostEdit;
     QSpinBox*    m_portSpinBox;
     QPushButton* m_connectButton;
     QLabel*      m_stateLabel;
-
-    QLabel* m_deviceIdLabel;
-    QLabel* m_temperatureLabel;
-    QLabel* m_pressureLabel;
-    QLabel* m_vibrationLabel;
-    QLabel* m_timestampLabel;
     QLabel* m_countLabel;
 
     QPlainTextEdit* m_logEdit;

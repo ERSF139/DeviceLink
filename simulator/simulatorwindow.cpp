@@ -3,6 +3,7 @@
 #include "device.h"
 #include "deviceserver.h"
 
+#include <algorithm>
 #include <QDateTime>
 #include <QFormLayout>
 #include <QGroupBox>
@@ -11,21 +12,21 @@
 #include <QPushButton>
 #include <QSpinBox>
 #include <QVBoxLayout>
-#include <QHBoxLayout>
 #include <QTableWidget>
 #include <QHeaderView>
+#include <QHBoxLayout>
 #include <QAbstractItemView>
 
 namespace {
 constexpr int kDeviceCount = 5;
-}
+}// namespace
 
 SimulatorWindow::SimulatorWindow(QWidget* parent)
     : QWidget(parent)
     , m_server(new DeviceServer(this))
 {
     setWindowTitle("DeviceLink 设备模拟器");
-    resize(520, 620);
+    resize(760, 720);
 
     buildUi();
     createDevices();
@@ -41,6 +42,8 @@ SimulatorWindow::SimulatorWindow(QWidget* parent)
             this,&SimulatorWindow::onToggleSelectedClicked);
     connect(m_listenButton, &QPushButton::clicked,
             this, &SimulatorWindow::onListenClicked);
+    connect(m_deviceTable, &QTableWidget::itemSelectionChanged,
+            this, &SimulatorWindow::updateControls);
 }
 
 void SimulatorWindow::buildUi()
@@ -117,6 +120,7 @@ void SimulatorWindow::createDevices()
         m_deviceTable->item(i, 0)->setText(device->name());
         refreshStatusCell(i);
     }
+    updateControls();
 }
 
 void SimulatorWindow::onSampleGenerated(const Sample& sample)
@@ -135,16 +139,10 @@ void SimulatorWindow::onSampleGenerated(const Sample& sample)
 
 void SimulatorWindow::onToggleAllClicked()
 {
-    bool allRunning = true;
-    for (Device* device : m_devices) {
-        if (!device->isRunning()) {
-            allRunning = false;
-            break;
-        }
-    }
+    const bool anyRunning = anyDeviceRunning();
 
     for (Device* device : m_devices) {
-        if (allRunning)
+        if (anyRunning)
             device->stop();
         else
             device->start();
@@ -153,7 +151,7 @@ void SimulatorWindow::onToggleAllClicked()
     for (int row = 0; row < m_devices.size(); ++row)
         refreshStatusCell(row);
 
-    m_toggleAllButton->setText(allRunning ? "全部启动" : "全部停止");
+    updateControls();
 }
 
 void SimulatorWindow::onToggleSelectedClicked()
@@ -167,8 +165,7 @@ void SimulatorWindow::onToggleSelectedClicked()
     else
         device->start();
     refreshStatusCell(row);
-    m_toggleSelectedButton->setText(
-        device->isRunning() ? "停止所选" : "启动所选");
+    updateControls();
 }
 
 void SimulatorWindow::onListenClicked()
@@ -197,19 +194,30 @@ void SimulatorWindow::appendLog(const QString& text)
     m_logEdit->appendPlainText(QString("[%1] %2").arg(time, text));
 }
 
-bool SimulatorWindow::anyDiviceRunning() const
+bool SimulatorWindow::anyDeviceRunning() const
 {
-    for (const Device* device : m_devices) {
-        if (device->isRunning())
-            return true;
-    }
-    return false;
+    return std::any_of(m_devices.cbegin(), m_devices.cend(),
+                       [](const Device* device) { return device->isRunning(); });
+}
+
+void SimulatorWindow::updateControls()
+{
+    for (int row = 0; row < m_devices.size(); ++row)
+        refreshStatusCell(row);
+    m_toggleAllButton->setText(anyDeviceRunning() ? "全部停止" : "全部启动");
+
+    const int  row          = m_deviceTable->currentRow();
+    const bool hasSelection = (row >= 0 && row < m_devices.size());
+
+    m_toggleSelectedButton->setEnabled(hasSelection);
+    m_toggleSelectedButton->setText(
+        hasSelection && m_devices.at(row)->isRunning() ? "停止所选" : "启动所选");
 }
 
 void SimulatorWindow::refreshStatusCell(int row)
 {
     if (row < 0 || row >= m_devices.size())
-    return;
+        return;
     const bool running = m_devices.at(row)->isRunning();
     m_deviceTable->item(row, 1)->setText(running ? "运行中" : "已停止");
 }

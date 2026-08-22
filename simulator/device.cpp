@@ -21,7 +21,8 @@ Device::Device(int id, const QString& name,int intervalMs, QObject* parent)
     , m_temperature(25.0)
     , m_pressure(101.3)
     , m_vibration(0.5)
-{    m_timer->setInterval(intervalMs);
+{
+    m_timer->setInterval(intervalMs);
     connect(m_timer, &QTimer::timeout, this, &Device::generateSample);
 }
 

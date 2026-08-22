@@ -32,7 +32,8 @@ private:
     void onClientCountChanged(int count);
     void appendLog(const QString& text);
 
-    bool anyDiviceRunning() const;
+    bool anyDeviceRunning() const;
+    void updateControls();
     void refreshStatusCell(int row);
 
     QList<Device*> m_devices;

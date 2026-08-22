@@ -56,11 +56,11 @@ void DeviceServer::broadcastSample(const Sample& sample)
         return;
 
     const QByteArray frame = Protocol::buildFrame(Protocol::MessageType::Sample,
-                                          Protocol::encodeSample(sample));
+                                                  Protocol::encodeSample(sample));
 
     for (QTcpSocket* socket : m_clients){
         socket->write(frame);
-        }
+    }
 }
 
 void DeviceServer::onNewConnection()

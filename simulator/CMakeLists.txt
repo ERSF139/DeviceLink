@@ -11,9 +11,9 @@ qt_add_executable(simulator
 
 target_link_libraries(simulator
     PRIVATE
-        common
-        Qt::Core
-        Qt::Gui
-        Qt::Widgets
-        Qt::Network
+    common
+    Qt::Core
+    Qt::Gui
+    Qt::Widgets
+    Qt::Network
 )

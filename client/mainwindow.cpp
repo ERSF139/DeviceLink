@@ -1,20 +1,25 @@
 #include "mainwindow.h"
 
 #include "deviceclient.h"
+#include "devicemodel.h"
 
+#include <QAbstractItemView>
 #include <QDateTime>
 #include <QFormLayout>
 #include <QGroupBox>
+#include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSpinBox>
+#include <QTableView>
 #include <QVBoxLayout>
 
 MainWindow::MainWindow(QWidget* parent)
     : QWidget(parent)
     , m_client(new DeviceClient(this))
+    , m_model(new DeviceModel(this))
 {
     setWindowTitle("DeviceLink 监控客户端");
     resize(560, 680);
@@ -30,6 +35,8 @@ MainWindow::MainWindow(QWidget* parent)
 
     connect(m_connectButton, &QPushButton::clicked,
             this, &MainWindow::onConnectClicked);
+    connect(m_client,&DeviceClient::sampleReceived,
+            m_model,&DeviceModel::updateSample);
 }
 
 void MainWindow::buildUi()
@@ -52,23 +59,24 @@ void MainWindow::buildUi()
     auto* connGroup = new QGroupBox("连接设置", this);
     connGroup->setLayout(connForm);
 
-    m_deviceIdLabel    = new QLabel("--", this);
-    m_temperatureLabel = new QLabel("--", this);
-    m_pressureLabel    = new QLabel("--", this);
-    m_vibrationLabel   = new QLabel("--", this);
-    m_timestampLabel   = new QLabel("--", this);
-    m_countLabel       = new QLabel("0", this);
+    m_deviceView = new QTableView(this);
+    m_deviceView->setModel(m_model);
+    m_deviceView->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_deviceView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_deviceView->verticalHeader()->setVisible(false);
+    m_deviceView->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
 
-    auto* dataForm = new QFormLayout;
-    dataForm->addRow("设备编号：",    m_deviceIdLabel);
-    dataForm->addRow("温度 (°C)：",   m_temperatureLabel);
-    dataForm->addRow("压力 (kPa)：",  m_pressureLabel);
-    dataForm->addRow("振动 (mm/s)：", m_vibrationLabel);
-    dataForm->addRow("采样时间：",    m_timestampLabel);
-    dataForm->addRow("累计接收：",    m_countLabel);
+    m_countLabel = new QLabel("0", this);
+
+    auto* countForm = new QFormLayout;
+    countForm->addRow("累计接收帧数：", m_countLabel);
+
+    auto* dataLayout = new QVBoxLayout;
+    dataLayout->addWidget(m_deviceView, 1);
+    dataLayout->addLayout(countForm);
 
     auto* dataGroup = new QGroupBox("实时数据", this);
-    dataGroup->setLayout(dataForm);
+    dataGroup->setLayout(dataLayout);
 
     m_logEdit = new QPlainTextEdit(this);
     m_logEdit->setReadOnly(true);
@@ -76,7 +84,7 @@ void MainWindow::buildUi()
 
     auto* layout = new QVBoxLayout(this);
     layout->addWidget(connGroup);
-    layout->addWidget(dataGroup);
+    layout->addWidget(dataGroup, 2);      // 表格占大头
     layout->addWidget(m_logEdit, 1);
 }
 
@@ -92,24 +100,22 @@ void MainWindow::onConnectClicked()
 
 void MainWindow::onConnectedChanged(bool connected)
 {
+    if (connected) {
+        m_model->clear();
+        m_sampleCount = 0;
+        m_countLabel->setText("0");
+    }
+
     m_stateLabel->setText(connected ? "已连接" : "未连接");
     m_connectButton->setText(connected ? "断开" : "连接");
     m_hostEdit->setEnabled(!connected);
     m_portSpinBox->setEnabled(!connected);
 }
 
-void MainWindow::onSampleReceived(const Sample& sample)
+void MainWindow::onSampleReceived(const Sample&)
 {
     ++m_sampleCount;
-
-    m_deviceIdLabel->setText(QString::number(sample.deviceId));
-    m_temperatureLabel->setText(QString::number(sample.temperature, 'f', 2));
-    m_pressureLabel->setText(QString::number(sample.pressure, 'f', 2));
-    m_vibrationLabel->setText(QString::number(sample.vibration, 'f', 3));
     m_countLabel->setText(QString::number(m_sampleCount));
-
-    const QDateTime time = QDateTime::fromMSecsSinceEpoch(sample.timestampMs);
-    m_timestampLabel->setText(time.toString("HH:mm:ss.zzz"));
 }
 
 void MainWindow::appendLog(const QString& text)
