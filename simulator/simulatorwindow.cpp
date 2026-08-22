@@ -11,54 +11,72 @@
 #include <QPushButton>
 #include <QSpinBox>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QTableWidget>
+#include <QHeaderView>
+#include <QAbstractItemView>
+
+namespace {
+constexpr int kDeviceCount = 5;
+}
 
 SimulatorWindow::SimulatorWindow(QWidget* parent)
     : QWidget(parent)
-    , m_device(new Device(1, "1号温度传感器", this))
     , m_server(new DeviceServer(this))
 {
     setWindowTitle("DeviceLink 设备模拟器");
     resize(520, 620);
 
     buildUi();
-
-    connect(m_device, &Device::sampleGenerated,
-            this, &SimulatorWindow::onSampleGenerated);
-    connect(m_device, &Device::sampleGenerated,
-            m_server, &DeviceServer::broadcastSample);
+    createDevices();
 
     connect(m_server, &DeviceServer::logMessage,
             this, &SimulatorWindow::appendLog);
     connect(m_server, &DeviceServer::clientCountChanged,
             this, &SimulatorWindow::onClientCountChanged);
 
-    connect(m_toggleButton, &QPushButton::clicked,
-            this, &SimulatorWindow::onToggleClicked);
+    connect(m_toggleAllButton, &QPushButton::clicked,
+            this, &SimulatorWindow::onToggleAllClicked);
+    connect(m_toggleSelectedButton,&QPushButton::clicked,
+            this,&SimulatorWindow::onToggleSelectedClicked);
     connect(m_listenButton, &QPushButton::clicked,
             this, &SimulatorWindow::onListenClicked);
 }
 
 void SimulatorWindow::buildUi()
 {
-    m_nameLabel        = new QLabel(m_device->name(), this);
-    m_statusLabel      = new QLabel("已停止", this);
-    m_temperatureLabel = new QLabel("--", this);
-    m_pressureLabel    = new QLabel("--", this);
-    m_vibrationLabel   = new QLabel("--", this);
-    m_timestampLabel   = new QLabel("--", this);
-    m_toggleButton     = new QPushButton("启动", this);
+    m_deviceTable = new QTableWidget(kDeviceCount, 6, this);
+    m_deviceTable->setHorizontalHeaderLabels(
+        {"设备", "状态", "温度(°C)", "压力(kPa)", "振动(mm/s)", "更新时间"});
 
-    auto* deviceForm = new QFormLayout;
-    deviceForm->addRow("设备名称：",    m_nameLabel);
-    deviceForm->addRow("运行状态：",    m_statusLabel);
-    deviceForm->addRow("温度 (°C)：",   m_temperatureLabel);
-    deviceForm->addRow("压力 (kPa)：",  m_pressureLabel);
-    deviceForm->addRow("振动 (mm/s)：", m_vibrationLabel);
-    deviceForm->addRow("更新时间：",    m_timestampLabel);
-    deviceForm->addRow(m_toggleButton);
+    m_deviceTable->setEditTriggers(QAbstractItemView::NoEditTriggers);//不可编辑
+    m_deviceTable->setSelectionBehavior(QAbstractItemView::SelectRows);//选中单元格所在行
+    m_deviceTable->setSelectionMode(QAbstractItemView::SingleSelection);//单行选择，一次只允许选择一行
+    m_deviceTable->verticalHeader()->setVisible(false);//隐藏表格左边的行号列
+    m_deviceTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);//拉伸自适应列宽大小
+
+    // 预先把所有格子创建出来，之后 item(row, col) 才不会返回 nullptr
+    for (int row = 0; row < kDeviceCount; ++row) {
+        for (int col = 0; col < m_deviceTable->columnCount(); ++col) {
+            auto* item = new QTableWidgetItem("--");
+            item->setTextAlignment(Qt::AlignCenter);
+            m_deviceTable->setItem(row, col, item);
+        }
+    }
+
+    m_toggleAllButton = new QPushButton("全部启动", this);
+    m_toggleSelectedButton  = new QPushButton("选择启动", this);
+
+    auto* buttonRow = new QHBoxLayout;
+    buttonRow->addWidget(m_toggleAllButton);
+    buttonRow->addWidget(m_toggleSelectedButton);
+
+    auto* deviceLayout = new QVBoxLayout;
+    deviceLayout->addWidget(m_deviceTable);
+    deviceLayout->addLayout(buttonRow);
 
     auto* deviceGroup = new QGroupBox("设备状态", this);
-    deviceGroup->setLayout(deviceForm);
+    deviceGroup->setLayout(deviceLayout);
 
     m_portSpinBox = new QSpinBox(this);
     m_portSpinBox->setRange(1024, 65535);
@@ -85,27 +103,72 @@ void SimulatorWindow::buildUi()
     layout->addWidget(m_logEdit, 1);
 }
 
-void SimulatorWindow::onSampleGenerated(const Sample& sample)
+void SimulatorWindow::createDevices()
 {
-    m_temperatureLabel->setText(QString::number(sample.temperature, 'f', 2));
-    m_pressureLabel->setText(QString::number(sample.pressure, 'f', 2));
-    m_vibrationLabel->setText(QString::number(sample.vibration, 'f', 3));
-
-    const QDateTime time = QDateTime::fromMSecsSinceEpoch(sample.timestampMs);
-    m_timestampLabel->setText(time.toString("HH:mm:ss"));
+    for (int i = 0; i < kDeviceCount; ++i) {
+        const int id       = i + 1;
+        const int interval = 800 + i * 100;      // 800/900/1000/1100/1200 ms
+        auto* device = new Device(id, QString("设备 %1").arg(id), interval, this);
+        m_devices.append(device);
+        connect(device, &Device::sampleGenerated,
+                this, &SimulatorWindow::onSampleGenerated);
+        connect(device, &Device::sampleGenerated,
+                m_server, &DeviceServer::broadcastSample);
+        m_deviceTable->item(i, 0)->setText(device->name());
+        refreshStatusCell(i);
+    }
 }
 
-void SimulatorWindow::onToggleClicked()
+void SimulatorWindow::onSampleGenerated(const Sample& sample)
 {
-    if (m_device->isRunning()) {
-        m_device->stop();
-        m_statusLabel->setText("已停止");
-        m_toggleButton->setText("启动");
-    } else {
-        m_device->start();
-        m_statusLabel->setText("运行中");
-        m_toggleButton->setText("停止");
+    const int row = sample.deviceId - 1;
+    if(row < 0 || row >= kDeviceCount)
+        return;
+
+    m_deviceTable->item(row, 2)->setText(QString::number(sample.temperature, 'f', 2));
+    m_deviceTable->item(row, 3)->setText(QString::number(sample.pressure,    'f', 2));
+    m_deviceTable->item(row, 4)->setText(QString::number(sample.vibration,   'f', 3));
+
+    const QDateTime time = QDateTime::fromMSecsSinceEpoch(sample.timestampMs);
+    m_deviceTable->item(row,5)->setText(time.toString("HH:mm:ss"));
+}
+
+void SimulatorWindow::onToggleAllClicked()
+{
+    bool allRunning = true;
+    for (Device* device : m_devices) {
+        if (!device->isRunning()) {
+            allRunning = false;
+            break;
+        }
     }
+
+    for (Device* device : m_devices) {
+        if (allRunning)
+            device->stop();
+        else
+            device->start();
+    }
+
+    for (int row = 0; row < m_devices.size(); ++row)
+        refreshStatusCell(row);
+
+    m_toggleAllButton->setText(allRunning ? "全部启动" : "全部停止");
+}
+
+void SimulatorWindow::onToggleSelectedClicked()
+{
+    const int row = m_deviceTable->currentRow();
+    if (row < 0 || row >= m_devices.size())
+        return;
+    Device* device = m_devices.at(row);
+    if (device->isRunning())
+        device->stop();
+    else
+        device->start();
+    refreshStatusCell(row);
+    m_toggleSelectedButton->setText(
+        device->isRunning() ? "停止所选" : "启动所选");
 }
 
 void SimulatorWindow::onListenClicked()
@@ -132,4 +195,21 @@ void SimulatorWindow::appendLog(const QString& text)
 {
     const QString time = QDateTime::currentDateTime().toString("HH:mm:ss");
     m_logEdit->appendPlainText(QString("[%1] %2").arg(time, text));
+}
+
+bool SimulatorWindow::anyDiviceRunning() const
+{
+    for (const Device* device : m_devices) {
+        if (device->isRunning())
+            return true;
+    }
+    return false;
+}
+
+void SimulatorWindow::refreshStatusCell(int row)
+{
+    if (row < 0 || row >= m_devices.size())
+    return;
+    const bool running = m_devices.at(row)->isRunning();
+    m_deviceTable->item(row, 1)->setText(running ? "运行中" : "已停止");
 }

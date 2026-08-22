@@ -3,6 +3,7 @@
 
 #include "sample.h"
 
+#include <QList>
 #include <QWidget>
 
 class Device;
@@ -11,6 +12,7 @@ class QPushButton;
 class DeviceServer;
 class QPlainTextEdit;
 class QSpinBox;
+class QTableWidget;
 
 class SimulatorWindow : public QWidget
 {
@@ -21,23 +23,25 @@ public:
 
 private:
     void buildUi();
+    void createDevices();
+
     void onSampleGenerated(const Sample& sample);
-    void onToggleClicked();
+    void onToggleAllClicked();
+    void onToggleSelectedClicked();
     void onListenClicked();
     void onClientCountChanged(int count);
     void appendLog(const QString& text);
 
-    Device* m_device;
+    bool anyDiviceRunning() const;
+    void refreshStatusCell(int row);
+
+    QList<Device*> m_devices;
     DeviceServer* m_server;
 
-    QLabel* m_nameLabel;
-    QLabel* m_statusLabel;
-    QLabel* m_temperatureLabel;
-    QLabel* m_pressureLabel;
-    QLabel* m_vibrationLabel;
-    QLabel* m_timestampLabel;
+    QTableWidget* m_deviceTable;
+    QPushButton*  m_toggleAllButton;
+    QPushButton*  m_toggleSelectedButton;
 
-    QPushButton* m_toggleButton;
     QSpinBox*       m_portSpinBox;
     QPushButton*    m_listenButton;
     QLabel*         m_clientCountLabel;

@@ -5,7 +5,6 @@
 #include <QTimer>
 
 namespace {
-constexpr int kSampleIntervalMs = 1000;
 
 double randomWalk(double current,double maxStep,double lowerBound,double upperBound)
 {
@@ -14,7 +13,7 @@ double randomWalk(double current,double maxStep,double lowerBound,double upperBo
 }
 }//namespace
 
-Device::Device(int id, const QString& name, QObject* parent)
+Device::Device(int id, const QString& name,int intervalMs, QObject* parent)
     : QObject(parent)
     , m_id(id)
     , m_name(name)
@@ -22,7 +21,7 @@ Device::Device(int id, const QString& name, QObject* parent)
     , m_temperature(25.0)
     , m_pressure(101.3)
     , m_vibration(0.5)
-{    m_timer->setInterval(kSampleIntervalMs);
+{    m_timer->setInterval(intervalMs);
     connect(m_timer, &QTimer::timeout, this, &Device::generateSample);
 }
 

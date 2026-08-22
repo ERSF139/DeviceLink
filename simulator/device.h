@@ -12,7 +12,7 @@ class Device : public QObject
 {
     Q_OBJECT
 public:
-    explicit Device(int id,const QString& name,QObject* parent = nullptr);
+    explicit Device(int id,const QString& name,int intervalMs,QObject* parent = nullptr);
 
     int id()const;
     QString name()const;
