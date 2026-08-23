@@ -5,12 +5,20 @@
 
 namespace {
 
+constexpr int kMaxHistory = 300;  // 1 Hz 下约 5 分
+
 const QStringList& headerLabels()
 {
     static const QStringList labels{
-        "设备编号", "温度(°C)", "压力(kPa)", "振动(mm/s)", "最后更新", "累计帧数"
-    };
+        "设备编号", "温度(°C)", "压力(kPa)", "振动(mm/s)", "最后更新", "累计帧数"};
     return labels;
+}
+
+void appendHistory(QList<Sample>& history, const Sample& sample)
+{
+    history.append(sample);
+    if (history.size() > kMaxHistory)
+        history.removeFirst();
 }
 
 } // namespace
@@ -71,6 +79,23 @@ QVariant DeviceModel::headerData(int section, Qt::Orientation orientation,int ro
     return QVariant();
 }
 
+QList<int> DeviceModel::deviceIds() const
+{
+    QList<int> ids;
+    ids.reserve(m_rows.size());
+    for (const DeviceRow& row : m_rows)
+        ids.append(row.deviceId);
+    return ids;
+}
+
+QList<Sample> DeviceModel::historyOf(int deviceId) const
+{
+    const auto it = m_rowOfDevice.constFind(deviceId);
+    if (it == m_rowOfDevice.cend())
+        return {};
+    return m_rows.at(it.value()).history;
+}
+
 int DeviceModel::deviceCount() const
 {
     return m_rows.size();
@@ -90,10 +115,13 @@ void DeviceModel::updateSample(const Sample& sample)
         deviceRow.deviceId    = sample.deviceId;
         deviceRow.latest      = sample;
         deviceRow.sampleCount = 1;
+        appendHistory(deviceRow.history, sample);
         m_rows.append(deviceRow);
         m_rowOfDevice.insert(sample.deviceId, row);
 
         endInsertRows();
+        emit deviceAdded(sample.deviceId);
+        emit sampleAppended(sample.deviceId, sample);
         return;
     }
 
@@ -102,8 +130,10 @@ void DeviceModel::updateSample(const Sample& sample)
     DeviceRow& deviceRow = m_rows[row];
     deviceRow.latest = sample;
     ++deviceRow.sampleCount;
+    appendHistory(deviceRow.history, sample);
 
     emit dataChanged(index(row, 0), index(row, ColumnCount - 1));
+    emit sampleAppended(sample.deviceId, sample);
 }
 
 void DeviceModel::clear()

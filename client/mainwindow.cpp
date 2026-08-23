@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 
+#include "chartpanel.h"
 #include "deviceclient.h"
 #include "devicemodel.h"
 
@@ -22,7 +23,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_model(new DeviceModel(this))
 {
     setWindowTitle("DeviceLink 监控客户端");
-    resize(560, 680);
+    resize(980, 860);
 
     buildUi();
 
@@ -78,13 +79,21 @@ void MainWindow::buildUi()
     auto* dataGroup = new QGroupBox("实时数据", this);
     dataGroup->setLayout(dataLayout);
 
+    m_chartPanel = new ChartPanel(m_model, this);
+
+    auto* chartGroup = new QGroupBox("实时曲线", this);
+    auto* chartLayout = new QVBoxLayout;
+    chartLayout->addWidget(m_chartPanel);
+    chartGroup->setLayout(chartLayout);
+
     m_logEdit = new QPlainTextEdit(this);
     m_logEdit->setReadOnly(true);
     m_logEdit->setMaximumBlockCount(500);
 
     auto* layout = new QVBoxLayout(this);
     layout->addWidget(connGroup);
-    layout->addWidget(dataGroup, 2);      // 表格占大头
+    layout->addWidget(dataGroup, 2);
+    layout->addWidget(chartGroup, 3);
     layout->addWidget(m_logEdit, 1);
 }
 

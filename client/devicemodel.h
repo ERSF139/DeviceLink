@@ -33,9 +33,16 @@ public:
 
     int deviceCount() const;
 
+    QList<int>    deviceIds() const;
+    QList<Sample> historyOf(int deviceId) const;
+
 public slots:
     void updateSample(const Sample& sample);
     void clear();
+
+signals:
+    void deviceAdded(int deviceId);
+    void sampleAppended(int deviceId, const Sample& sample);
 
 private:
     struct DeviceRow
@@ -43,6 +50,7 @@ private:
         int    deviceId    = 0;
         Sample latest;
         int    sampleCount = 0;
+        QList<Sample> history;
     };
 
     QList<DeviceRow> m_rows;         // 行号 -> 设备数据

@@ -5,6 +5,7 @@
 
 #include <QWidget>
 
+class ChartPanel;
 class DeviceClient;
 class QLabel;
 class QLineEdit;
@@ -28,6 +29,7 @@ private:
     void onSampleReceived(const Sample& sample);
     void appendLog(const QString& text);
 
+    ChartPanel* m_chartPanel;
     DeviceClient* m_client;
     DeviceModel* m_model;
     QTableView* m_deviceView;

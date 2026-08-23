@@ -7,6 +7,8 @@ qt_add_executable(client
     deviceclient.cpp
     devicemodel.h
     devicemodel.cpp
+    chartpanel.h
+    chartpanel.cpp
 )
 
 target_link_libraries(client
@@ -16,4 +18,5 @@ target_link_libraries(client
     Qt::Gui
     Qt::Widgets
     Qt::Network
+    Qt::Charts
 )
