@@ -21,3 +21,15 @@ target_link_libraries(tst_frameparser
 )
 
 add_test(NAME tst_frameparser COMMAND tst_frameparser)
+
+qt_add_executable(tst_alarm
+    tst_alarm.cpp
+)
+
+target_link_libraries(tst_alarm
+    PRIVATE
+    common
+    Qt::Test
+)
+
+add_test(NAME tst_alarm COMMAND tst_alarm)

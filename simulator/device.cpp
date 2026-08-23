@@ -46,6 +46,19 @@ void Device::stop()
 {
     m_timer->stop();
 }
+
+void Device::injectSpike()
+{
+    m_temperature = 95.0;
+    m_vibration   = 4.5;
+}
+
+void Device::resetValues()
+{
+    m_temperature = 25.0;
+    m_pressure    = 101.3;
+    m_vibration   = 0.5;
+}
 void Device::generateSample()
 {
     m_temperature = randomWalk(m_temperature, 0.4,  -20.0, 120.0);

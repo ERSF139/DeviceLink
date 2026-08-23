@@ -28,6 +28,8 @@ private:
     void onSampleGenerated(const Sample& sample);
     void onToggleAllClicked();
     void onToggleSelectedClicked();
+    void onInjectSpikeClicked();
+    void onResetValuesClicked();
     void onListenClicked();
     void onClientCountChanged(int count);
     void appendLog(const QString& text);
@@ -42,6 +44,8 @@ private:
     QTableWidget* m_deviceTable;
     QPushButton*  m_toggleAllButton;
     QPushButton*  m_toggleSelectedButton;
+    QPushButton*  m_injectSpikeButton;
+    QPushButton*  m_resetValuesButton;
 
     QSpinBox*       m_portSpinBox;
     QPushButton*    m_listenButton;

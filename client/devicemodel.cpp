@@ -1,5 +1,6 @@
 #include "devicemodel.h"
 
+#include <QColor>
 #include <QDateTime>
 #include <QStringList>
 
@@ -10,7 +11,7 @@ constexpr int kMaxHistory = 300;  // 1 Hz 下约 5 分
 const QStringList& headerLabels()
 {
     static const QStringList labels{
-        "设备编号", "温度(°C)", "压力(kPa)", "振动(mm/s)", "最后更新", "累计帧数"};
+        "设备编号", "温度(°C)", "压力(kPa)", "振动(mm/s)", "最后更新", "累计帧数","报警"};
     return labels;
 }
 
@@ -45,13 +46,22 @@ QVariant DeviceModel::data(const QModelIndex& index, int role) const
     if (!index.isValid() || index.row() < 0 || index.row() >= m_rows.size())
         return QVariant();
 
+    const DeviceRow& row = m_rows.at(index.row());
+
     if (role == Qt::TextAlignmentRole)
         return static_cast<int>(Qt::AlignCenter);
 
+    if (role == Qt::BackgroundRole) {
+        switch (row.alarm.level) {
+        case Alarm::Level::Warning:  return QColor(255, 243, 205);   // 浅黄
+        case Alarm::Level::Critical: return QColor(255, 214, 214);   // 浅红
+        case Alarm::Level::Normal:   break;
+        }
+        return QVariant();
+    }
+
     if (role != Qt::DisplayRole)
         return QVariant();
-
-    const DeviceRow& row = m_rows.at(index.row());
 
     switch (index.column()) {
     case ColumnDeviceId:    return row.deviceId;
@@ -61,6 +71,8 @@ QVariant DeviceModel::data(const QModelIndex& index, int role) const
     case ColumnLastUpdate:
         return QDateTime::fromMSecsSinceEpoch(row.latest.timestampMs).toString("HH:mm:ss");
     case ColumnSampleCount: return row.sampleCount;
+    case ColumnAlarm:
+        return row.alarm.reason.isEmpty() ? QString("—") : row.alarm.reason;
     default:                return QVariant();
     }
 }
@@ -101,6 +113,18 @@ int DeviceModel::deviceCount() const
     return m_rows.size();
 }
 
+void DeviceModel::setThresholds(const Alarm::Thresholds& thresholds)
+{
+    m_thresholds = thresholds;
+    if (m_rows.isEmpty())
+        return;
+
+    for (DeviceRow& row : m_rows)
+        row.alarm = Alarm::evaluate(row.latest, m_thresholds);
+
+    emit dataChanged(index(0, 0), index(m_rows.size() - 1, ColumnCount - 1));
+}
+
 void DeviceModel::updateSample(const Sample& sample)
 {
     const auto it = m_rowOfDevice.constFind(sample.deviceId);
@@ -116,24 +140,38 @@ void DeviceModel::updateSample(const Sample& sample)
         deviceRow.latest      = sample;
         deviceRow.sampleCount = 1;
         appendHistory(deviceRow.history, sample);
+        deviceRow.alarm = Alarm::evaluate(sample, m_thresholds);
         m_rows.append(deviceRow);
         m_rowOfDevice.insert(sample.deviceId, row);
 
         endInsertRows();
         emit deviceAdded(sample.deviceId);
         emit sampleAppended(sample.deviceId, sample);
+
+        if (deviceRow.alarm.level != Alarm::Level::Normal) {
+            emit alarmChanged(sample.deviceId,
+                              deviceRow.alarm.level,
+                              deviceRow.alarm.reason);
+        }
         return;
     }
 
     // 已有设备：更新那一行
     const int row = it.value();
     DeviceRow& deviceRow = m_rows[row];
+
+    const Alarm::Level previousLevel = deviceRow.alarm.level;
+
     deviceRow.latest = sample;
     ++deviceRow.sampleCount;
     appendHistory(deviceRow.history, sample);
+    deviceRow.alarm = Alarm::evaluate(sample, m_thresholds);
 
     emit dataChanged(index(row, 0), index(row, ColumnCount - 1));
     emit sampleAppended(sample.deviceId, sample);
+
+    if (deviceRow.alarm.level != previousLevel)
+        emit alarmChanged(sample.deviceId, deviceRow.alarm.level, deviceRow.alarm.reason);
 }
 
 void DeviceModel::clear()

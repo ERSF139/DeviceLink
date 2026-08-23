@@ -40,6 +40,10 @@ SimulatorWindow::SimulatorWindow(QWidget* parent)
             this, &SimulatorWindow::onToggleAllClicked);
     connect(m_toggleSelectedButton,&QPushButton::clicked,
             this,&SimulatorWindow::onToggleSelectedClicked);
+    connect(m_injectSpikeButton, &QPushButton::clicked,
+            this, &SimulatorWindow::onInjectSpikeClicked);
+    connect(m_resetValuesButton, &QPushButton::clicked,
+            this, &SimulatorWindow::onResetValuesClicked);
     connect(m_listenButton, &QPushButton::clicked,
             this, &SimulatorWindow::onListenClicked);
     connect(m_deviceTable, &QTableWidget::itemSelectionChanged,
@@ -69,10 +73,14 @@ void SimulatorWindow::buildUi()
 
     m_toggleAllButton = new QPushButton("全部启动", this);
     m_toggleSelectedButton  = new QPushButton("选择启动", this);
+    m_injectSpikeButton = new QPushButton("注入异常", this);
+    m_resetValuesButton = new QPushButton("恢复正常", this);
 
     auto* buttonRow = new QHBoxLayout;
     buttonRow->addWidget(m_toggleAllButton);
     buttonRow->addWidget(m_toggleSelectedButton);
+    buttonRow->addWidget(m_injectSpikeButton);
+    buttonRow->addWidget(m_resetValuesButton);
 
     auto* deviceLayout = new QVBoxLayout;
     deviceLayout->addWidget(m_deviceTable);
@@ -168,6 +176,26 @@ void SimulatorWindow::onToggleSelectedClicked()
     updateControls();
 }
 
+void SimulatorWindow::onInjectSpikeClicked()
+{
+    const int row = m_deviceTable->currentRow();
+    if (row < 0 || row >= m_devices.size())
+        return;
+
+    m_devices.at(row)->injectSpike();
+    appendLog(QString("已向 %1 注入异常").arg(m_devices.at(row)->name()));
+}
+
+void SimulatorWindow::onResetValuesClicked()
+{
+    const int row = m_deviceTable->currentRow();
+    if (row < 0 || row >= m_devices.size())
+        return;
+
+    m_devices.at(row)->resetValues();
+    appendLog(QString("已将 %1 恢复正常").arg(m_devices.at(row)->name()));
+}
+
 void SimulatorWindow::onListenClicked()
 {
     if (m_server->isListening()) {
@@ -212,6 +240,8 @@ void SimulatorWindow::updateControls()
     m_toggleSelectedButton->setEnabled(hasSelection);
     m_toggleSelectedButton->setText(
         hasSelection && m_devices.at(row)->isRunning() ? "停止所选" : "启动所选");
+    m_injectSpikeButton->setEnabled(hasSelection);
+    m_resetValuesButton->setEnabled(hasSelection);
 }
 
 void SimulatorWindow::refreshStatusCell(int row)

@@ -38,6 +38,8 @@ MainWindow::MainWindow(QWidget* parent)
             this, &MainWindow::onConnectClicked);
     connect(m_client,&DeviceClient::sampleReceived,
             m_model,&DeviceModel::updateSample);
+    connect(m_model, &DeviceModel::alarmChanged,
+            this, &MainWindow::onAlarmChanged);
 }
 
 void MainWindow::buildUi()
@@ -125,6 +127,17 @@ void MainWindow::onSampleReceived(const Sample&)
 {
     ++m_sampleCount;
     m_countLabel->setText(QString::number(m_sampleCount));
+}
+
+void MainWindow::onAlarmChanged(int deviceId, Alarm::Level level, const QString& reason)
+{
+    if (level == Alarm::Level::Normal) {
+        appendLog(QString("设备 %1 报警解除").arg(deviceId));
+        return;
+    }
+    appendLog(QString("设备 %1 进入【%2】%3")
+                  .arg(deviceId)
+                  .arg(Alarm::levelName(level), reason));
 }
 
 void MainWindow::appendLog(const QString& text)

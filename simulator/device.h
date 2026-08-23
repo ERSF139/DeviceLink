@@ -21,6 +21,8 @@ public:
 public slots:
     void start();
     void stop();
+    void injectSpike();
+    void resetValues();
 
 signals:
     void sampleGenerated(const Sample& sample);

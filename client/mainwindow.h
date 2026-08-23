@@ -1,6 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include "alarm.h"
 #include "sample.h"
 
 #include <QWidget>
@@ -27,6 +28,7 @@ private:
     void onConnectClicked();
     void onConnectedChanged(bool connected);
     void onSampleReceived(const Sample& sample);
+    void onAlarmChanged(int deviceId, Alarm::Level level, const QString& reason);
     void appendLog(const QString& text);
 
     ChartPanel* m_chartPanel;

@@ -2,6 +2,7 @@
 #define DEVICEMODEL_H
 
 #include "sample.h"
+#include "alarm.h"
 
 #include <QAbstractTableModel>
 #include <QHash>
@@ -20,6 +21,7 @@ public:
         ColumnVibration,
         ColumnLastUpdate,
         ColumnSampleCount,
+        ColumnAlarm,
         ColumnCount
     };
 
@@ -36,6 +38,8 @@ public:
     QList<int>    deviceIds() const;
     QList<Sample> historyOf(int deviceId) const;
 
+    void setThresholds(const Alarm::Thresholds& thresholds);
+
 public slots:
     void updateSample(const Sample& sample);
     void clear();
@@ -43,6 +47,7 @@ public slots:
 signals:
     void deviceAdded(int deviceId);
     void sampleAppended(int deviceId, const Sample& sample);
+    void alarmChanged(int deviceId, Alarm::Level level, const QString& reason);
 
 private:
     struct DeviceRow
@@ -51,10 +56,12 @@ private:
         Sample latest;
         int    sampleCount = 0;
         QList<Sample> history;
+        Alarm::Result alarm;
     };
 
-    QList<DeviceRow> m_rows;         // 行号 -> 设备数据
-    QHash<int, int>  m_rowOfDevice;  // 设备ID -> 行号
+    QList<DeviceRow>  m_rows;         // 行号 -> 设备数据
+    QHash<int, int>   m_rowOfDevice;  // 设备ID -> 行号
+    Alarm::Thresholds m_thresholds;
 };
 
 #endif // DEVICEMODEL_H
