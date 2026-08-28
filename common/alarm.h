@@ -14,7 +14,6 @@ enum class Level
     Critical = 2,
 };
 
-// 只设上限：温度、压力、振动都是"越高越危险"
 struct Thresholds
 {
     double temperatureWarn     = 60.0;

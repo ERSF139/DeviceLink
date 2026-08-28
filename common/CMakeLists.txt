@@ -4,7 +4,8 @@ qt_add_library(common STATIC
     protocol.cpp
     frameparser.h
     frameparser.cpp
-    alarm.h alarm.cpp
+    alarm.h
+    alarm.cpp
 )
 
 target_include_directories(common

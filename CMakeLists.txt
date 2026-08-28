@@ -5,11 +5,10 @@ project(DeviceLink LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Network Test Charts)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Network Test Charts Sql)
 
 qt_standard_project_setup()
 
-# Qt Creator 的运行配置在构建根目录找 exe；测试目标默认会编到 tests/ 子目录。
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 enable_testing()

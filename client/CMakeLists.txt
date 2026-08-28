@@ -9,6 +9,8 @@ qt_add_executable(client
     devicemodel.cpp
     chartpanel.h
     chartpanel.cpp
+    sampledatabase.h
+    sampledatabase.cpp
 )
 
 target_link_libraries(client
@@ -19,4 +21,5 @@ target_link_libraries(client
     Qt::Widgets
     Qt::Network
     Qt::Charts
+    Qt::Sql
 )

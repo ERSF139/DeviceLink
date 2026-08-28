@@ -3,9 +3,11 @@
 #include "chartpanel.h"
 #include "deviceclient.h"
 #include "devicemodel.h"
+#include "sampledatabase.h"
 
 #include <QAbstractItemView>
 #include <QDateTime>
+#include <QDir>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHeaderView>
@@ -14,6 +16,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSpinBox>
+#include <QStandardPaths>
 #include <QTableView>
 #include <QVBoxLayout>
 
@@ -21,6 +24,7 @@ MainWindow::MainWindow(QWidget* parent)
     : QWidget(parent)
     , m_client(new DeviceClient(this))
     , m_model(new DeviceModel(this))
+    , m_database(new SampleDatabase(this))
 {
     setWindowTitle("DeviceLink 监控客户端");
     resize(980, 860);
@@ -40,6 +44,27 @@ MainWindow::MainWindow(QWidget* parent)
             m_model,&DeviceModel::updateSample);
     connect(m_model, &DeviceModel::alarmChanged,
             this, &MainWindow::onAlarmChanged);
+
+    connect(m_client, &DeviceClient::sampleReceived,
+            m_database, &SampleDatabase::enqueue);
+    connect(m_database, &SampleDatabase::logMessage,
+            this, &MainWindow::appendLog);
+    connect(m_database, &SampleDatabase::flushed,
+            this, &MainWindow::onFlushed);
+
+    const QString dataDir =
+        QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    QDir().mkpath(dataDir);
+    m_database->open(QDir(dataDir).filePath(QStringLiteral("devicelink.db")));
+    m_storageLabel->setText(QString("%1 条").arg(m_database->rowCount()));
+}
+
+void MainWindow::onFlushed(int rowCount, qint64 elapsedMs)
+{
+    m_storageLabel->setText(QString("%1 条（本批 %2 条 / %3 ms）")
+                                .arg(m_database->rowCount())
+                                .arg(rowCount)
+                                .arg(elapsedMs));
 }
 
 void MainWindow::buildUi()
@@ -73,6 +98,9 @@ void MainWindow::buildUi()
 
     auto* countForm = new QFormLayout;
     countForm->addRow("累计接收帧数：", m_countLabel);
+
+    m_storageLabel = new QLabel("未启用", this);
+    countForm->addRow("已存储：", m_storageLabel);
 
     auto* dataLayout = new QVBoxLayout;
     dataLayout->addWidget(m_deviceView, 1);

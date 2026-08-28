@@ -15,6 +15,7 @@ class QPushButton;
 class QSpinBox;
 class DeviceModel;
 class QTableView;
+class SampleDatabase;
 
 class MainWindow : public QWidget
 {
@@ -22,6 +23,9 @@ class MainWindow : public QWidget
 
 public:
     explicit MainWindow(QWidget* parent = nullptr);
+
+public slots:
+    void onFlushed(int rowCount, qint64 elapsedMs);
 
 private:
     void buildUi();
@@ -43,6 +47,9 @@ private:
     QLabel* m_countLabel;
 
     QPlainTextEdit* m_logEdit;
+
+    SampleDatabase* m_database;
+    QLabel*         m_storageLabel;
 
     int m_sampleCount = 0;
 };

@@ -33,3 +33,10 @@ target_link_libraries(tst_alarm
 )
 
 add_test(NAME tst_alarm COMMAND tst_alarm)
+
+qt_add_executable(tst_sampledatabase tst_sampledatabase.cpp
+    ../client/sampledatabase.h
+    ../client/sampledatabase.cpp)
+target_include_directories(tst_sampledatabase PRIVATE ${CMAKE_SOURCE_DIR}/client)
+target_link_libraries(tst_sampledatabase PRIVATE common Qt::Test Qt::Sql)
+add_test(NAME tst_sampledatabase COMMAND tst_sampledatabase)

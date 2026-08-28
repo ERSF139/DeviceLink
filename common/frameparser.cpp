@@ -60,7 +60,7 @@ std::optional<Protocol::Frame> FrameParser::nextFrame()
 
         if (headerPos < 0) {
             // 整个缓冲区里没有帧头。保留最后 1 个字节：
-            // 它可能是 0xA5，而 0x5A 还在下一批数据里
+            // 可能是 0xA5，0x5A 在下一批数据
             const int drop = static_cast<int>(m_buffer.size()) - 1;
             m_buffer.remove(0, drop);
             m_droppedBytes += drop;
