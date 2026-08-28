@@ -15,6 +15,7 @@ private slots:
     void parseFrame_rejectsCorruptedPayload();
     void parseFrame_rejectsTruncatedFrame();
     void decodeSample_rejectsWrongPayloadSize();
+    void roundTrip_emptyHeartbeat();
 };
 
 void TestProtocol::crc16_matchesKnownVector()
@@ -105,6 +106,18 @@ void TestProtocol::decodeSample_rejectsWrongPayloadSize()
     QVERIFY(!Protocol::decodeSample(QByteArray()).has_value());
     QVERIFY(!Protocol::decodeSample(QByteArray(10, '\0')).has_value());
     QVERIFY(!Protocol::decodeSample(QByteArray(100, '\0')).has_value());
+}
+
+void TestProtocol::roundTrip_emptyHeartbeat()
+{
+    const QByteArray frame = Protocol::buildFrame(Protocol::MessageType::Heartbeat, QByteArray());
+
+    QCOMPARE(frame.size(), Protocol::kMinFrameSize);
+
+    const auto parsed = Protocol::parseFrame(frame);
+    QVERIFY(parsed.has_value());
+    QVERIFY(parsed->type == Protocol::MessageType::Heartbeat);
+    QVERIFY(parsed->payload.isEmpty());
 }
 
 QTEST_APPLESS_MAIN(TestProtocol)

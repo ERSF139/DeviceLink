@@ -1,14 +1,21 @@
 #include "deviceserver.h"
+
 #include "protocol.h"
+#include "reconnect.h"
 
 #include <QHostAddress>
 #include <QTcpServer>
 #include <QTcpSocket>
+#include <QTimer>
 
 DeviceServer::DeviceServer(QObject* parent)
     : QObject(parent)
     , m_server(new QTcpServer(this))
+    , m_heartbeatTimer(new QTimer(this))
 {
+    m_heartbeatTimer->setInterval(Reconnect::kHeartbeatIntervalMs);
+    connect(m_heartbeatTimer, &QTimer::timeout, this, &DeviceServer::broadcastHeartbeat);
+
     connect(m_server, &QTcpServer::newConnection,
             this, &DeviceServer::onNewConnection);
 }
@@ -35,12 +42,16 @@ bool DeviceServer::startListening(quint16 port)
         return false;
     }
 
-    emit logMessage(QString("开始监听端口 %1").arg(port));
+    m_heartbeatTimer->start();
+    emit logMessage(QString("开始监听端口 %1，心跳间隔 %2 ms")
+                        .arg(port)
+                        .arg(Reconnect::kHeartbeatIntervalMs));
     return true;
 }
 
 void DeviceServer::stopListening()
 {
+    m_heartbeatTimer->stop();
     m_server->close();
 
     const QList<QTcpSocket*> clients = m_clients;
@@ -58,9 +69,18 @@ void DeviceServer::broadcastSample(const Sample& sample)
     const QByteArray frame = Protocol::buildFrame(Protocol::MessageType::Sample,
                                                   Protocol::encodeSample(sample));
 
-    for (QTcpSocket* socket : m_clients){
+    for (QTcpSocket* socket : m_clients)
         socket->write(frame);
-    }
+}
+
+void DeviceServer::broadcastHeartbeat()
+{
+    if (m_clients.isEmpty())
+        return;
+
+    const QByteArray frame = Protocol::buildFrame(Protocol::MessageType::Heartbeat, QByteArray());
+    for (QTcpSocket* socket : m_clients)
+        socket->write(frame);
 }
 
 void DeviceServer::onNewConnection()

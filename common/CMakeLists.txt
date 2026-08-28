@@ -6,6 +6,7 @@ qt_add_library(common STATIC
     frameparser.cpp
     alarm.h
     alarm.cpp
+    reconnect.h
 )
 
 target_include_directories(common

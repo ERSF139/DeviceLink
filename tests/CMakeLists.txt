@@ -40,3 +40,7 @@ qt_add_executable(tst_sampledatabase tst_sampledatabase.cpp
 target_include_directories(tst_sampledatabase PRIVATE ${CMAKE_SOURCE_DIR}/client)
 target_link_libraries(tst_sampledatabase PRIVATE common Qt::Test Qt::Sql)
 add_test(NAME tst_sampledatabase COMMAND tst_sampledatabase)
+
+qt_add_executable(tst_reconnect tst_reconnect.cpp)
+target_link_libraries(tst_reconnect PRIVATE common Qt::Test)
+add_test(NAME tst_reconnect COMMAND tst_reconnect)

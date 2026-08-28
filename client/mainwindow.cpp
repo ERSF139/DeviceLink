@@ -35,6 +35,8 @@ MainWindow::MainWindow(QWidget* parent)
             this, &MainWindow::onSampleReceived);
     connect(m_client, &DeviceClient::connectedChanged,
             this, &MainWindow::onConnectedChanged);
+    connect(m_client, &DeviceClient::reconnectScheduled,
+            this, &MainWindow::onReconnectScheduled);
     connect(m_client, &DeviceClient::logMessage,
             this, &MainWindow::appendLog);
 
@@ -129,7 +131,7 @@ void MainWindow::buildUi()
 
 void MainWindow::onConnectClicked()
 {
-    if (m_client->isConnected()) {
+    if (m_client->isActive()) {
         m_client->disconnectFromServer();
     } else {
         m_client->connectToServer(m_hostEdit->text().trimmed(),
@@ -145,10 +147,41 @@ void MainWindow::onConnectedChanged(bool connected)
         m_countLabel->setText("0");
     }
 
-    m_stateLabel->setText(connected ? "已连接" : "未连接");
-    m_connectButton->setText(connected ? "断开" : "连接");
-    m_hostEdit->setEnabled(!connected);
-    m_portSpinBox->setEnabled(!connected);
+    refreshConnectionUi();
+}
+
+void MainWindow::onReconnectScheduled(int delayMs)
+{
+    Q_UNUSED(delayMs);
+    refreshConnectionUi();
+}
+
+void MainWindow::refreshConnectionUi()
+{
+    const bool connected = m_client->isConnected();
+    const bool active    = m_client->isActive();
+
+    if (connected)
+        m_stateLabel->setText(QStringLiteral("已连接"));
+    else if (active) {
+        const int remainMs = m_client->pendingReconnectMs();
+        if (remainMs > 0)
+            m_stateLabel->setText(QString("重连中（%1 秒）").arg((remainMs + 999) / 1000));
+        else
+            m_stateLabel->setText(QStringLiteral("重连中…"));
+    }
+    else
+        m_stateLabel->setText(QStringLiteral("未连接"));
+
+    if (connected)
+        m_connectButton->setText(QStringLiteral("断开"));
+    else if (active)
+        m_connectButton->setText(QStringLiteral("取消重连"));
+    else
+        m_connectButton->setText(QStringLiteral("连接"));
+
+    m_hostEdit->setEnabled(!active);
+    m_portSpinBox->setEnabled(!active);
 }
 
 void MainWindow::onSampleReceived(const Sample&)

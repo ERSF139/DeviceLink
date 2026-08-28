@@ -31,9 +31,11 @@ private:
     void buildUi();
     void onConnectClicked();
     void onConnectedChanged(bool connected);
+    void onReconnectScheduled(int delayMs);
     void onSampleReceived(const Sample& sample);
     void onAlarmChanged(int deviceId, Alarm::Level level, const QString& reason);
     void appendLog(const QString& text);
+    void refreshConnectionUi();
 
     ChartPanel* m_chartPanel;
     DeviceClient* m_client;

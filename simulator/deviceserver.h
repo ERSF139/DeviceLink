@@ -8,6 +8,7 @@
 
 class QTcpServer;
 class QTcpSocket;
+class QTimer;
 
 class DeviceServer : public QObject
 {
@@ -30,8 +31,10 @@ signals:
 
 private:
     void onNewConnection();
+    void broadcastHeartbeat();
 
     QTcpServer*        m_server;
+    QTimer*            m_heartbeatTimer;
     QList<QTcpSocket*> m_clients;
 };
 
