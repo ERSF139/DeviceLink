@@ -2,6 +2,7 @@
 #include "sampledatabase.h"
 
 #include <QElapsedTimer>
+#include <QFile>
 #include <QSqlDatabase>
 #include <QSqlError>
 #include <QSqlQuery>
@@ -50,6 +51,9 @@ private slots:
     void enqueueAndFlush_persistsRows();
     void flush_withoutData_succeeds();
     void flush_isTriggeredByBatchSize();
+    void selectHistory_filtersByDeviceAndTime();
+    void selectHistory_allDevicesAndLimit();
+    void writeCsv_exportsFilteredUtf8();
     void benchmark_transactionVsPerRow();
 };
 
@@ -103,6 +107,69 @@ void TestSampleDatabase::flush_isTriggeredByBatchSize()
 
     QVERIFY(db.rowCount() >= 200);       // 已经自动落盘过一次
     QVERIFY(db.pendingCount() < 200);
+}
+
+void TestSampleDatabase::selectHistory_filtersByDeviceAndTime()
+{
+    QTemporaryDir dir;
+    SampleDatabase db;
+    QVERIFY(db.open(dir.filePath(QStringLiteral("query.db"))));
+
+    db.enqueue(makeSample(1, 100));
+    db.enqueue(makeSample(1, 200));
+    db.enqueue(makeSample(1, 300));
+    db.enqueue(makeSample(2, 150));
+    db.enqueue(makeSample(2, 250));
+    QVERIFY(db.flush());
+
+    qint64 total = 0;
+    const QList<Sample> rows = db.selectHistory(1, 150, 300, 100, &total);
+    QCOMPARE(total, 2LL);
+    QCOMPARE(rows.size(), 2);
+    QCOMPARE(rows.at(0).timestampMs, 200LL);
+    QCOMPARE(rows.at(1).timestampMs, 300LL);
+    QCOMPARE(rows.at(0).deviceId, 1);
+}
+
+void TestSampleDatabase::selectHistory_allDevicesAndLimit()
+{
+    QTemporaryDir dir;
+    SampleDatabase db;
+    QVERIFY(db.open(dir.filePath(QStringLiteral("limit.db"))));
+
+    for (int i = 0; i < 5; ++i)
+        db.enqueue(makeSample(i % 2 + 1, 1000 + i));
+    QVERIFY(db.flush());
+
+    qint64 total = 0;
+    const QList<Sample> rows = db.selectHistory(0, 0, 10000, 3, &total);
+    QCOMPARE(total, 5LL);
+    QCOMPARE(rows.size(), 3);
+    QCOMPARE(rows.at(0).timestampMs, 1000LL);
+}
+
+void TestSampleDatabase::writeCsv_exportsFilteredUtf8()
+{
+    QTemporaryDir dir;
+    SampleDatabase db;
+    QVERIFY(db.open(dir.filePath(QStringLiteral("csv.db"))));
+
+    db.enqueue(makeSample(1, 1700000000000LL));
+    db.enqueue(makeSample(2, 1700000001000LL));
+    QVERIFY(db.flush());
+
+    const QString csvPath = dir.filePath(QStringLiteral("out.csv"));
+    qint64 written = 0;
+    QVERIFY(db.writeCsv(csvPath, 2, 0, 1800000000000LL, &written));
+    QCOMPARE(written, 1LL);
+
+    QFile file(csvPath);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QByteArray bytes = file.readAll();
+    QVERIFY(bytes.startsWith("\xEF\xBB\xBF"));
+    QVERIFY(bytes.contains("device_id,ts_ms,time,temperature,pressure,vibration"));
+    QVERIFY(bytes.contains("2,1700000001000"));
+    QVERIFY(!bytes.contains("1,1700000000000"));
 }
 
 void TestSampleDatabase::benchmark_transactionVsPerRow()

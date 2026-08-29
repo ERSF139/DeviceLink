@@ -1,9 +1,13 @@
 #include "sampledatabase.h"
 
+#include <QDateTime>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QFileInfo>
 #include <QSqlError>
 #include <QSqlQuery>
+#include <QStringConverter>
+#include <QTextStream>
 #include <QTimer>
 #include <QVariant>
 
@@ -69,6 +73,7 @@ bool SampleDatabase::open(const QString& filePath)
 
     m_flushTimer->start();
     emit opened(rowCount());
+    listDeviceIds();
     emit logMessage(QString("数据库已打开：%1")
                         .arg(QFileInfo(filePath).absoluteFilePath()));
     return true;
@@ -150,6 +155,14 @@ bool SampleDatabase::createSchema()
         return false;
     }
 
+    const QString createTsIndex = QStringLiteral(
+        "CREATE INDEX IF NOT EXISTS idx_samples_ts ON samples(ts_ms)");
+    if (!query.exec(createTsIndex)) {
+        m_lastError = query.lastError().text();
+        emit logMessage(QString("建时间索引失败：%1").arg(m_lastError));
+        return false;
+    }
+
     return true;
 }
 
@@ -222,4 +235,182 @@ qint64 SampleDatabase::rowCount() const
         return 0;
 
     return query.value(0).toLongLong();
+}
+
+bool SampleDatabase::prepareHistoryQuery(QSqlQuery& query, const QString& sqlHead,
+                                         const QString& sqlTail, int deviceId,
+                                         qint64 fromMs, qint64 toMs) const
+{
+    QString sql = sqlHead;
+    sql += QStringLiteral(" WHERE ts_ms >= ? AND ts_ms <= ?");
+    if (deviceId > 0)
+        sql += QStringLiteral(" AND device_id = ?");
+    sql += sqlTail;
+
+    if (!query.prepare(sql)) {
+        return false;
+    }
+
+    query.addBindValue(fromMs);
+    query.addBindValue(toMs);
+    if (deviceId > 0)
+        query.addBindValue(deviceId);
+    return true;
+}
+
+QList<Sample> SampleDatabase::selectHistory(int deviceId, qint64 fromMs, qint64 toMs,
+                                            int limit, qint64* totalMatched) const
+{
+    if (totalMatched)
+        *totalMatched = 0;
+
+    QList<Sample> rows;
+    if (!m_db.isOpen())
+        return rows;
+
+    qint64 from = fromMs;
+    qint64 to   = toMs;
+    if (from > to)
+        qSwap(from, to);
+
+    QSqlQuery countQuery(m_db);
+    if (!prepareHistoryQuery(countQuery,
+                             QStringLiteral("SELECT COUNT(*) FROM samples"),
+                             QString(), deviceId, from, to)
+        || !countQuery.exec() || !countQuery.next()) {
+        return rows;
+    }
+
+    const qint64 total = countQuery.value(0).toLongLong();
+    if (totalMatched)
+        *totalMatched = total;
+
+    QSqlQuery query(m_db);
+    QString tail = QStringLiteral(" ORDER BY ts_ms ASC, device_id ASC");
+    if (limit > 0)
+        tail += QStringLiteral(" LIMIT ?");
+
+    if (!prepareHistoryQuery(query,
+                             QStringLiteral(
+                                 "SELECT device_id, ts_ms, temperature, pressure, vibration "
+                                 "FROM samples"),
+                             tail, deviceId, from, to)) {
+        return rows;
+    }
+    if (limit > 0)
+        query.addBindValue(limit);
+
+    if (!query.exec())
+        return rows;
+
+    while (query.next()) {
+        Sample sample;
+        sample.deviceId    = query.value(0).toInt();
+        sample.timestampMs = query.value(1).toLongLong();
+        sample.temperature = query.value(2).toDouble();
+        sample.pressure    = query.value(3).toDouble();
+        sample.vibration   = query.value(4).toDouble();
+        rows.append(sample);
+    }
+    return rows;
+}
+
+bool SampleDatabase::writeCsv(const QString& filePath, int deviceId, qint64 fromMs, qint64 toMs,
+                              qint64* written)
+{
+    if (written)
+        *written = 0;
+
+    if (!m_db.isOpen()) {
+        m_lastError = QStringLiteral("数据库未打开");
+        return false;
+    }
+
+    qint64 from = fromMs;
+    qint64 to   = toMs;
+    if (from > to)
+        qSwap(from, to);
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        m_lastError = file.errorString();
+        return false;
+    }
+
+    file.write("\xEF\xBB\xBF");
+    QTextStream out(&file);
+    out.setEncoding(QStringConverter::Utf8);
+    out << QStringLiteral("device_id,ts_ms,time,temperature,pressure,vibration\n");
+
+    QSqlQuery query(m_db);
+    if (!prepareHistoryQuery(query,
+                             QStringLiteral(
+                                 "SELECT device_id, ts_ms, temperature, pressure, vibration "
+                                 "FROM samples"),
+                             QStringLiteral(" ORDER BY ts_ms ASC, device_id ASC"),
+                             deviceId, from, to)
+        || !query.exec()) {
+        m_lastError = query.lastError().text();
+        return false;
+    }
+
+    qint64 count = 0;
+    while (query.next()) {
+        const qint64 ts = query.value(1).toLongLong();
+        const QString time =
+            QDateTime::fromMSecsSinceEpoch(ts).toString(QStringLiteral("yyyy-MM-dd HH:mm:ss.zzz"));
+        out << query.value(0).toInt() << ','
+            << ts << ','
+            << time << ','
+            << QString::number(query.value(2).toDouble(), 'f', 3) << ','
+            << QString::number(query.value(3).toDouble(), 'f', 3) << ','
+            << QString::number(query.value(4).toDouble(), 'f', 4) << '\n';
+        ++count;
+    }
+
+    out.flush();
+    if (written)
+        *written = count;
+    return true;
+}
+
+void SampleDatabase::queryHistory(int deviceId, qint64 fromMs, qint64 toMs)
+{
+    flush();
+    qint64 total = 0;
+    const QList<Sample> rows =
+        selectHistory(deviceId, fromMs, toMs, kMaxQueryRows, &total);
+    emit queryFinished(rows, total);
+    listDeviceIds();
+}
+
+void SampleDatabase::exportCsv(const QString& filePath, int deviceId, qint64 fromMs, qint64 toMs)
+{
+    flush();
+    qint64 written = 0;
+    if (!writeCsv(filePath, deviceId, fromMs, toMs, &written)) {
+        emit logMessage(QString("导出 CSV 失败：%1").arg(m_lastError));
+        emit exportFinished(false, m_lastError);
+        return;
+    }
+
+    const QString message = QStringLiteral("已导出 %1 条到 %2").arg(written).arg(filePath);
+    emit logMessage(message);
+    emit exportFinished(true, message);
+}
+
+void SampleDatabase::listDeviceIds()
+{
+    QList<int> ids;
+    if (!m_db.isOpen()) {
+        emit deviceIdsReady(ids);
+        return;
+    }
+
+    QSqlQuery query(m_db);
+    if (query.exec(QStringLiteral("SELECT DISTINCT device_id FROM samples ORDER BY device_id"))) {
+        while (query.next())
+            ids.append(query.value(0).toInt());
+    }
+    emit deviceIdsReady(ids);
 }

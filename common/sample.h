@@ -1,6 +1,7 @@
 #ifndef SAMPLE_H
 #define SAMPLE_H
 
+#include <QList>
 #include <QMetaType>
 #include <QtGlobal>
 
@@ -14,5 +15,6 @@ struct Sample
 };
 
 Q_DECLARE_METATYPE(Sample)
+Q_DECLARE_METATYPE(QList<Sample>)
 
 #endif // SAMPLE_H

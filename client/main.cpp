@@ -7,6 +7,8 @@
 int main(int argc, char* argv[])
 {
     qRegisterMetaType<Sample>("Sample");
+    qRegisterMetaType<QList<Sample>>("QList<Sample>");
+    qRegisterMetaType<QList<int>>("QList<int>");
 
     QApplication app(argc, argv);
 

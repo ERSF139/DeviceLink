@@ -8,6 +8,8 @@
 
 class ChartPanel;
 class DeviceClient;
+class QComboBox;
+class QDateTimeEdit;
 class QLabel;
 class QLineEdit;
 class QPlainTextEdit;
@@ -15,6 +17,8 @@ class QPushButton;
 class QSpinBox;
 class DeviceModel;
 class QTableView;
+class QTableWidget;
+class QTabWidget;
 class QThread;
 class SampleDatabase;
 
@@ -29,6 +33,9 @@ public:
 public slots:
     void onOpened(qint64 totalRows);
     void onFlushed(int rowCount, qint64 elapsedMs, qint64 totalRows);
+    void onQueryFinished(const QList<Sample>& rows, qint64 totalMatched);
+    void onExportFinished(bool ok, const QString& message);
+    void onDeviceIdsReady(const QList<int>& ids);
 
 private:
     void buildUi();
@@ -39,6 +46,10 @@ private:
     void onAlarmChanged(int deviceId, Alarm::Level level, const QString& reason);
     void appendLog(const QString& text);
     void refreshConnectionUi();
+    void onHistoryQueryClicked();
+    void onHistoryExportClicked();
+    void currentHistoryFilter(int* deviceId, qint64* fromMs, qint64* toMs) const;
+    void setHistoryBusy(bool busy);
 
     ChartPanel* m_chartPanel;
     DeviceClient* m_client;
@@ -56,6 +67,15 @@ private:
     QThread*        m_dbThread;
     SampleDatabase* m_database;
     QLabel*         m_storageLabel;
+
+    QTabWidget*     m_tabWidget;
+    QComboBox*      m_historyDeviceBox;
+    QDateTimeEdit*  m_historyFromEdit;
+    QDateTimeEdit*  m_historyToEdit;
+    QPushButton*    m_historyQueryButton;
+    QPushButton*    m_historyExportButton;
+    QTableWidget*   m_historyTable;
+    QLabel*         m_historyStatusLabel;
 
     int m_sampleCount = 0;
 };

@@ -6,10 +6,14 @@
 #include "sampledatabase.h"
 
 #include <QAbstractItemView>
+#include <QComboBox>
 #include <QDateTime>
+#include <QDateTimeEdit>
 #include <QDir>
+#include <QFileDialog>
 #include <QFormLayout>
 #include <QGroupBox>
+#include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
@@ -18,6 +22,8 @@
 #include <QSpinBox>
 #include <QStandardPaths>
 #include <QTableView>
+#include <QTableWidget>
+#include <QTabWidget>
 #include <QThread>
 #include <QVBoxLayout>
 
@@ -29,7 +35,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_database(new SampleDatabase)
 {
     setWindowTitle("DeviceLink 监控客户端");
-    resize(980, 860);
+    resize(1000, 920);
 
     buildUi();
     m_storageLabel->setText(QStringLiteral("启动中…"));
@@ -68,6 +74,12 @@ MainWindow::MainWindow(QWidget* parent)
             this, &MainWindow::appendLog);
     connect(m_database, &SampleDatabase::flushed,
             this, &MainWindow::onFlushed);
+    connect(m_database, &SampleDatabase::queryFinished,
+            this, &MainWindow::onQueryFinished);
+    connect(m_database, &SampleDatabase::exportFinished,
+            this, &MainWindow::onExportFinished);
+    connect(m_database, &SampleDatabase::deviceIdsReady,
+            this, &MainWindow::onDeviceIdsReady);
     m_dbThread->start();
 }
 
@@ -145,15 +157,81 @@ void MainWindow::buildUi()
     chartLayout->addWidget(m_chartPanel);
     chartGroup->setLayout(chartLayout);
 
+    auto* realtimePage = new QWidget(this);
+    auto* realtimeLayout = new QVBoxLayout(realtimePage);
+    realtimeLayout->setContentsMargins(0, 0, 0, 0);
+    realtimeLayout->addWidget(dataGroup, 2);
+    realtimeLayout->addWidget(chartGroup, 3);
+
+    m_historyDeviceBox = new QComboBox(this);
+    m_historyDeviceBox->addItem(QStringLiteral("全部"), 0);
+
+    m_historyFromEdit = new QDateTimeEdit(this);
+    m_historyToEdit   = new QDateTimeEdit(this);
+    const QDateTime now = QDateTime::currentDateTime();
+    m_historyFromEdit->setCalendarPopup(true);
+    m_historyToEdit->setCalendarPopup(true);
+    m_historyFromEdit->setDisplayFormat(QStringLiteral("yyyy-MM-dd HH:mm:ss"));
+    m_historyToEdit->setDisplayFormat(QStringLiteral("yyyy-MM-dd HH:mm:ss"));
+    m_historyFromEdit->setDateTime(now.addDays(-1));
+    m_historyToEdit->setDateTime(now);
+
+    m_historyQueryButton  = new QPushButton(QStringLiteral("查询"), this);
+    m_historyExportButton = new QPushButton(QStringLiteral("导出 CSV"), this);
+
+    auto* filterRow = new QHBoxLayout;
+    filterRow->addWidget(new QLabel(QStringLiteral("设备："), this));
+    filterRow->addWidget(m_historyDeviceBox);
+    filterRow->addWidget(new QLabel(QStringLiteral("从"), this));
+    filterRow->addWidget(m_historyFromEdit, 1);
+    filterRow->addWidget(new QLabel(QStringLiteral("到"), this));
+    filterRow->addWidget(m_historyToEdit, 1);
+    filterRow->addWidget(m_historyQueryButton);
+    filterRow->addWidget(m_historyExportButton);
+
+    m_historyTable = new QTableWidget(0, 5, this);
+    m_historyTable->setHorizontalHeaderLabels(
+        {QStringLiteral("设备"), QStringLiteral("时间"), QStringLiteral("温度(°C)"),
+         QStringLiteral("压力(kPa)"), QStringLiteral("振动(mm/s)")});
+    m_historyTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_historyTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_historyTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_historyTable->verticalHeader()->setVisible(false);
+    m_historyTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    m_historyTable->setAlternatingRowColors(true);
+
+    m_historyStatusLabel = new QLabel(QStringLiteral("尚未查询"), this);
+
+    auto* historyPage = new QWidget(this);
+    auto* historyLayout = new QVBoxLayout(historyPage);
+    historyLayout->setContentsMargins(0, 0, 0, 0);
+    historyLayout->addLayout(filterRow);
+    historyLayout->addWidget(m_historyTable, 1);
+    historyLayout->addWidget(m_historyStatusLabel);
+
+    m_tabWidget = new QTabWidget(this);
+    m_tabWidget->addTab(realtimePage, QStringLiteral("实时监控"));
+    m_tabWidget->addTab(historyPage, QStringLiteral("历史查询"));
+
     m_logEdit = new QPlainTextEdit(this);
     m_logEdit->setReadOnly(true);
     m_logEdit->setMaximumBlockCount(500);
 
     auto* layout = new QVBoxLayout(this);
     layout->addWidget(connGroup);
-    layout->addWidget(dataGroup, 2);
-    layout->addWidget(chartGroup, 3);
+    layout->addWidget(m_tabWidget, 5);
     layout->addWidget(m_logEdit, 1);
+
+    connect(m_historyQueryButton, &QPushButton::clicked,
+            this, &MainWindow::onHistoryQueryClicked);
+    connect(m_historyExportButton, &QPushButton::clicked,
+            this, &MainWindow::onHistoryExportClicked);
+    connect(m_tabWidget, &QTabWidget::currentChanged, this, [this](int index) {
+        if (index == 1) {
+            QMetaObject::invokeMethod(m_database, &SampleDatabase::listDeviceIds,
+                                      Qt::QueuedConnection);
+        }
+    });
 }
 
 void MainWindow::onConnectClicked()
@@ -232,4 +310,109 @@ void MainWindow::appendLog(const QString& text)
 {
     const QString time = QDateTime::currentDateTime().toString("HH:mm:ss");
     m_logEdit->appendPlainText(QString("[%1] %2").arg(time, text));
+}
+
+void MainWindow::currentHistoryFilter(int* deviceId, qint64* fromMs, qint64* toMs) const
+{
+    *deviceId = m_historyDeviceBox->currentData().toInt();
+    *fromMs   = m_historyFromEdit->dateTime().toMSecsSinceEpoch();
+    *toMs     = m_historyToEdit->dateTime().toMSecsSinceEpoch();
+}
+
+void MainWindow::setHistoryBusy(bool busy)
+{
+    m_historyQueryButton->setEnabled(!busy);
+    m_historyExportButton->setEnabled(!busy);
+    m_historyDeviceBox->setEnabled(!busy);
+    m_historyFromEdit->setEnabled(!busy);
+    m_historyToEdit->setEnabled(!busy);
+}
+
+void MainWindow::onHistoryQueryClicked()
+{
+    int deviceId = 0;
+    qint64 fromMs = 0;
+    qint64 toMs = 0;
+    currentHistoryFilter(&deviceId, &fromMs, &toMs);
+
+    setHistoryBusy(true);
+    m_historyStatusLabel->setText(QStringLiteral("查询中…"));
+    QMetaObject::invokeMethod(m_database, &SampleDatabase::queryHistory,
+                              Qt::QueuedConnection, deviceId, fromMs, toMs);
+}
+
+void MainWindow::onHistoryExportClicked()
+{
+    int deviceId = 0;
+    qint64 fromMs = 0;
+    qint64 toMs = 0;
+    currentHistoryFilter(&deviceId, &fromMs, &toMs);
+
+    const QString suggested = QDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation))
+                                  .filePath(QStringLiteral("devicelink_%1.csv")
+                                                .arg(QDateTime::currentDateTime().toString(
+                                                    QStringLiteral("yyyyMMdd_HHmmss"))));
+    const QString path = QFileDialog::getSaveFileName(
+        this, QStringLiteral("导出 CSV"), suggested, QStringLiteral("CSV 文件 (*.csv)"));
+    if (path.isEmpty())
+        return;
+
+    setHistoryBusy(true);
+    m_historyStatusLabel->setText(QStringLiteral("导出中…"));
+    QMetaObject::invokeMethod(m_database, &SampleDatabase::exportCsv,
+                              Qt::QueuedConnection, path, deviceId, fromMs, toMs);
+}
+
+void MainWindow::onQueryFinished(const QList<Sample>& rows, qint64 totalMatched)
+{
+    setHistoryBusy(false);
+
+    m_historyTable->setSortingEnabled(false);
+    m_historyTable->setRowCount(rows.size());
+    for (int i = 0; i < rows.size(); ++i) {
+        const Sample& sample = rows.at(i);
+        const QString time =
+            QDateTime::fromMSecsSinceEpoch(sample.timestampMs).toString("yyyy-MM-dd HH:mm:ss");
+
+        auto setCell = [this, i](int column, const QString& text) {
+            auto* item = new QTableWidgetItem(text);
+            item->setTextAlignment(Qt::AlignCenter);
+            m_historyTable->setItem(i, column, item);
+        };
+
+        setCell(0, QString::number(sample.deviceId));
+        setCell(1, time);
+        setCell(2, QString::number(sample.temperature, 'f', 2));
+        setCell(3, QString::number(sample.pressure, 'f', 2));
+        setCell(4, QString::number(sample.vibration, 'f', 3));
+    }
+
+    if (totalMatched > rows.size()) {
+        m_historyStatusLabel->setText(
+            QStringLiteral("显示 %1 / 共 %2 条（表格上限 %3，导出 CSV 可写出全部）")
+                .arg(rows.size())
+                .arg(totalMatched)
+                .arg(SampleDatabase::kMaxQueryRows));
+    } else {
+        m_historyStatusLabel->setText(QStringLiteral("共 %1 条").arg(totalMatched));
+    }
+}
+
+void MainWindow::onExportFinished(bool ok, const QString& message)
+{
+    setHistoryBusy(false);
+    m_historyStatusLabel->setText(ok ? message : QStringLiteral("导出失败：%1").arg(message));
+}
+
+void MainWindow::onDeviceIdsReady(const QList<int>& ids)
+{
+    const int current = m_historyDeviceBox->currentData().toInt();
+    m_historyDeviceBox->blockSignals(true);
+    m_historyDeviceBox->clear();
+    m_historyDeviceBox->addItem(QStringLiteral("全部"), 0);
+    for (int id : ids)
+        m_historyDeviceBox->addItem(QString("设备 %1").arg(id), id);
+    const int index = m_historyDeviceBox->findData(current);
+    m_historyDeviceBox->setCurrentIndex(index >= 0 ? index : 0);
+    m_historyDeviceBox->blockSignals(false);
 }
