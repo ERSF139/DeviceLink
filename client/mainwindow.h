@@ -15,6 +15,7 @@ class QPushButton;
 class QSpinBox;
 class DeviceModel;
 class QTableView;
+class QThread;
 class SampleDatabase;
 
 class MainWindow : public QWidget
@@ -23,9 +24,11 @@ class MainWindow : public QWidget
 
 public:
     explicit MainWindow(QWidget* parent = nullptr);
+    ~MainWindow() override;
 
 public slots:
-    void onFlushed(int rowCount, qint64 elapsedMs);
+    void onOpened(qint64 totalRows);
+    void onFlushed(int rowCount, qint64 elapsedMs, qint64 totalRows);
 
 private:
     void buildUi();
@@ -50,6 +53,7 @@ private:
 
     QPlainTextEdit* m_logEdit;
 
+    QThread*        m_dbThread;
     SampleDatabase* m_database;
     QLabel*         m_storageLabel;
 

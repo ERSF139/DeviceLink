@@ -68,9 +68,21 @@ bool SampleDatabase::open(const QString& filePath)
     }
 
     m_flushTimer->start();
+    emit opened(rowCount());
     emit logMessage(QString("数据库已打开：%1")
                         .arg(QFileInfo(filePath).absoluteFilePath()));
     return true;
+}
+
+void SampleDatabase::initialize(const QString& filePath)
+{
+    open(filePath);
+}
+
+void SampleDatabase::shutdown()
+{
+    flush();
+    close();
 }
 
 void SampleDatabase::close()
@@ -196,7 +208,7 @@ bool SampleDatabase::flush()
     const int written = static_cast<int>(m_pending.size());
     m_pending.clear();
 
-    emit flushed(written, timer.elapsed());
+    emit flushed(written, timer.elapsed(), rowCount());
     return true;
 }
 

@@ -18,18 +18,21 @@
 #include <QSpinBox>
 #include <QStandardPaths>
 #include <QTableView>
+#include <QThread>
 #include <QVBoxLayout>
 
 MainWindow::MainWindow(QWidget* parent)
     : QWidget(parent)
     , m_client(new DeviceClient(this))
     , m_model(new DeviceModel(this))
-    , m_database(new SampleDatabase(this))
+    , m_dbThread(new QThread(this))
+    , m_database(new SampleDatabase)
 {
     setWindowTitle("DeviceLink 监控客户端");
     resize(980, 860);
 
     buildUi();
+    m_storageLabel->setText(QStringLiteral("启动中…"));
 
     connect(m_client, &DeviceClient::sampleReceived,
             this, &MainWindow::onSampleReceived);
@@ -47,24 +50,48 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_model, &DeviceModel::alarmChanged,
             this, &MainWindow::onAlarmChanged);
 
+    const QString dataDir =
+        QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    QDir().mkpath(dataDir);
+    const QString dbPath = QDir(dataDir).filePath(QStringLiteral("devicelink.db"));
+
+    m_database->moveToThread(m_dbThread);
+    connect(m_dbThread, &QThread::started, m_database, [database = m_database, dbPath]() {
+        database->initialize(dbPath);
+    });
+    connect(m_dbThread, &QThread::finished, m_database, &QObject::deleteLater);
     connect(m_client, &DeviceClient::sampleReceived,
             m_database, &SampleDatabase::enqueue);
+    connect(m_database, &SampleDatabase::opened,
+            this, &MainWindow::onOpened);
     connect(m_database, &SampleDatabase::logMessage,
             this, &MainWindow::appendLog);
     connect(m_database, &SampleDatabase::flushed,
             this, &MainWindow::onFlushed);
-
-    const QString dataDir =
-        QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    QDir().mkpath(dataDir);
-    m_database->open(QDir(dataDir).filePath(QStringLiteral("devicelink.db")));
-    m_storageLabel->setText(QString("%1 条").arg(m_database->rowCount()));
+    m_dbThread->start();
 }
 
-void MainWindow::onFlushed(int rowCount, qint64 elapsedMs)
+MainWindow::~MainWindow()
+{
+    disconnect(m_database, nullptr, this, nullptr);
+
+    if (m_dbThread->isRunning()) {
+        QMetaObject::invokeMethod(m_database, &SampleDatabase::shutdown,
+                                  Qt::BlockingQueuedConnection);
+        m_dbThread->quit();
+        m_dbThread->wait();
+    }
+}
+
+void MainWindow::onOpened(qint64 totalRows)
+{
+    m_storageLabel->setText(QString("%1 条").arg(totalRows));
+}
+
+void MainWindow::onFlushed(int rowCount, qint64 elapsedMs, qint64 totalRows)
 {
     m_storageLabel->setText(QString("%1 条（本批 %2 条 / %3 ms）")
-                                .arg(m_database->rowCount())
+                                .arg(totalRows)
                                 .arg(rowCount)
                                 .arg(elapsedMs));
 }

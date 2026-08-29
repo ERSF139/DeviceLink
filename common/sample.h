@@ -1,6 +1,7 @@
 #ifndef SAMPLE_H
 #define SAMPLE_H
 
+#include <QMetaType>
 #include <QtGlobal>
 
 struct Sample
@@ -11,5 +12,7 @@ struct Sample
     double pressure = 0.0;       //压力
     double vibration = 0.0;      //振动
 };
+
+Q_DECLARE_METATYPE(Sample)
 
 #endif // SAMPLE_H
