@@ -70,5 +70,6 @@ void Device::generateSample()
     sample.temperature = m_temperature;
     sample.pressure    = m_pressure;
     sample.vibration   = m_vibration;
+
     emit sampleGenerated(sample);
 }

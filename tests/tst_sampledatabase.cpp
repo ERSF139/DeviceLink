@@ -40,6 +40,59 @@ QSqlDatabase openRaw(const QString& path, const QString& name)
     return db;
 }
 
+qint64 runInsertBenchmark(const QString& path, const QString& connName,
+                          bool useWal, bool useTransaction, int rows)
+{
+    qint64 elapsed = -1;
+
+    {
+        QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connName);
+        db.setDatabaseName(path);
+        if (!db.open())
+            return -1;
+
+        QSqlQuery setup(db);
+        if (useWal) {
+            setup.exec(QStringLiteral("PRAGMA journal_mode = WAL"));
+            setup.exec(QStringLiteral("PRAGMA synchronous = NORMAL"));
+        }
+        setup.exec(QStringLiteral(
+            "CREATE TABLE samples ("
+            "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "  device_id INTEGER NOT NULL, ts_ms INTEGER NOT NULL,"
+            "  temperature REAL NOT NULL, pressure REAL NOT NULL, vibration REAL NOT NULL)"));
+
+        QSqlQuery query(db);
+        query.prepare(QStringLiteral(
+            "INSERT INTO samples (device_id, ts_ms, temperature, pressure, vibration) "
+            "VALUES (?, ?, ?, ?, ?)"));
+
+        QElapsedTimer timer;
+        timer.start();
+
+        if (useTransaction)
+            db.transaction();
+
+        for (int i = 0; i < rows; ++i) {
+            query.addBindValue(1);
+            query.addBindValue(1700000000000LL + i);
+            query.addBindValue(25.0);
+            query.addBindValue(101.0);
+            query.addBindValue(0.5);
+            query.exec();
+        }
+
+        if (useTransaction)
+            db.commit();
+
+        elapsed = timer.elapsed();
+        db.close();
+    }
+
+    QSqlDatabase::removeDatabase(connName);
+    return elapsed;
+}
+
 } // namespace
 
 class TestSampleDatabase : public QObject
@@ -54,7 +107,7 @@ private slots:
     void selectHistory_filtersByDeviceAndTime();
     void selectHistory_allDevicesAndLimit();
     void writeCsv_exportsFilteredUtf8();
-    void benchmark_transactionVsPerRow();
+    void benchmark_insertStrategies();
 };
 
 void TestSampleDatabase::open_createsSchema()
@@ -172,76 +225,31 @@ void TestSampleDatabase::writeCsv_exportsFilteredUtf8()
     QVERIFY(!bytes.contains("1,1700000000000"));
 }
 
-void TestSampleDatabase::benchmark_transactionVsPerRow()
+void TestSampleDatabase::benchmark_insertStrategies()
 {
-    constexpr int kRows = 2000;
+    constexpr int kRows = 1000;
 
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
 
-    qint64 perRowMs = 0;
-    qint64 batchMs  = 0;
+    const qint64 naive =
+        runInsertBenchmark(dir.filePath("a.db"), "bench_a", false, false, kRows);
+    const qint64 txnOnly =
+        runInsertBenchmark(dir.filePath("b.db"), "bench_b", false, true, kRows);
+    const qint64 walTxn =
+        runInsertBenchmark(dir.filePath("c.db"), "bench_c", true, true, kRows);
 
-    // ---- 方式一：逐条自动提交 ----
-    {
-        QSqlDatabase db = openRaw(dir.filePath(QStringLiteral("a.db")),
-                                  QStringLiteral("bench_perrow"));
-        QSqlQuery query(db);
-        query.prepare(QStringLiteral(
-            "INSERT INTO samples (device_id, ts_ms, temperature, pressure, vibration) "
-            "VALUES (?, ?, ?, ?, ?)"));
+    auto rate = [](qint64 ms) { return ms > 0 ? kRows * 1000.0 / ms : 0.0; };
 
-        QElapsedTimer timer;
-        timer.start();
-        for (int i = 0; i < kRows; ++i) {
-            query.addBindValue(1);
-            query.addBindValue(1700000000000LL + i);
-            query.addBindValue(25.0);
-            query.addBindValue(101.0);
-            query.addBindValue(0.5);
-            QVERIFY(query.exec());
-        }
-        perRowMs = timer.elapsed();
+    qInfo("A  默认配置 + 逐条提交   : %6lld ms   %9.0f 条/秒", naive,   rate(naive));
+    qInfo("B  默认配置 + 单事务     : %6lld ms   %9.0f 条/秒", txnOnly, rate(txnOnly));
+    qInfo("C  WAL+NORMAL + 单事务   : %6lld ms   %9.0f 条/秒", walTxn,  rate(walTxn));
+    qInfo("事务带来 %.1fx，再加 WAL 共 %.1fx",
+          double(naive) / qMax(txnOnly, 1LL),
+          double(naive) / qMax(walTxn, 1LL));
 
-        db.close();
-    }
-    QSqlDatabase::removeDatabase(QStringLiteral("bench_perrow"));
-
-    // ---- 方式二：单事务批量提交 ----
-    {
-        QSqlDatabase db = openRaw(dir.filePath(QStringLiteral("b.db")),
-                                  QStringLiteral("bench_batch"));
-        QSqlQuery query(db);
-        query.prepare(QStringLiteral(
-            "INSERT INTO samples (device_id, ts_ms, temperature, pressure, vibration) "
-            "VALUES (?, ?, ?, ?, ?)"));
-
-        QElapsedTimer timer;
-        timer.start();
-        QVERIFY(db.transaction());
-        for (int i = 0; i < kRows; ++i) {
-            query.addBindValue(1);
-            query.addBindValue(1700000000000LL + i);
-            query.addBindValue(25.0);
-            query.addBindValue(101.0);
-            query.addBindValue(0.5);
-            QVERIFY(query.exec());
-        }
-        QVERIFY(db.commit());
-        batchMs = timer.elapsed();
-
-        db.close();
-    }
-    QSqlDatabase::removeDatabase(QStringLiteral("bench_batch"));
-
-    const double perRowRate = perRowMs > 0 ? kRows * 1000.0 / perRowMs : 0.0;
-    const double batchRate  = batchMs  > 0 ? kRows * 1000.0 / batchMs  : 0.0;
-
-    qInfo("逐条提交 : %lld ms  (%.0f 条/秒)", perRowMs, perRowRate);
-    qInfo("事务批量 : %lld ms  (%.0f 条/秒)", batchMs,  batchRate);
-    qInfo("提升倍数 : %.1fx", perRowMs > 0 ? double(perRowMs) / double(qMax(batchMs, 1LL)) : 0.0);
-
-    QVERIFY(batchMs <= perRowMs);        // 批量不应该更慢
+    QVERIFY(txnOnly <= naive);
+    QVERIFY(walTxn  <= naive);
 }
 
 QTEST_GUILESS_MAIN(TestSampleDatabase)

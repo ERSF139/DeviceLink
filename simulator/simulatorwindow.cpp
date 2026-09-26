@@ -62,7 +62,7 @@ void SimulatorWindow::buildUi()
     m_deviceTable->verticalHeader()->setVisible(false);//隐藏表格左边的行号列
     m_deviceTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);//拉伸自适应列宽大小
 
-    // 预先把所有格子创建出来，之后 item(row, col) 才不会返回 nullptr
+    // 预先把所有格子创建出来，之后 item(row, col) 不会返回 nullptr
     for (int row = 0; row < kDeviceCount; ++row) {
         for (int col = 0; col < m_deviceTable->columnCount(); ++col) {
             auto* item = new QTableWidgetItem("--");
@@ -118,7 +118,7 @@ void SimulatorWindow::createDevices()
 {
     for (int i = 0; i < kDeviceCount; ++i) {
         const int id       = i + 1;
-        const int interval = 800 + i * 100;      // 800/900/1000/1100/1200 ms
+        const int interval = 800 + i * 100;
         auto* device = new Device(id, QString("设备 %1").arg(id), interval, this);
         m_devices.append(device);
         connect(device, &Device::sampleGenerated,

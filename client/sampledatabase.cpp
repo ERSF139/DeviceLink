@@ -13,8 +13,8 @@
 
 namespace {
 
-constexpr int kFlushIntervalMs = 2000;   // 最长 2 秒落盘一次
-constexpr int kFlushBatchSize  = 200;    // 攒够 200 条立刻落盘
+constexpr int kFlushIntervalMs = 2000;//最长2秒落盘一次
+constexpr int kFlushBatchSize  = 200; //攒够200条立刻落盘
 
 int nextConnectionId()
 {
@@ -99,8 +99,8 @@ void SampleDatabase::close()
         emit logMessage(QStringLiteral("数据库已关闭"));
     }
 
-    m_db = QSqlDatabase();                              // 先让成员失效
-    if (QSqlDatabase::contains(m_connectionName))       // 再移除连接
+    m_db = QSqlDatabase();
+    if (QSqlDatabase::contains(m_connectionName))
         QSqlDatabase::removeDatabase(m_connectionName);
 }
 
@@ -108,7 +108,7 @@ bool SampleDatabase::applyPragmas()
 {
     QSqlQuery query(m_db);
 
-    // WAL：读写不互相阻塞，写入吞吐显著高于默认的 rollback journal
+    // WAL：读写不互相阻塞，写入吞吐显著高于默认rollback
     if (!query.exec(QStringLiteral("PRAGMA journal_mode = WAL"))) {
         m_lastError = query.lastError().text();
         emit logMessage(QString("设置 WAL 失败：%1").arg(m_lastError));

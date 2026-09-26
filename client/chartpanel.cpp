@@ -15,8 +15,8 @@
 
 namespace {
 
-constexpr int kVisibleSeconds  = 60;    // 横轴显示最近 60 秒
-constexpr int kMaxPointsPerLine = 300;  // 每条线最多保留的点数
+constexpr int kVisibleSeconds  = 60;  //横轴显示最近 60 秒
+constexpr int kMaxPointsPerLine = 300;//每条线最多保留的点数
 
 } // namespace
 
@@ -114,7 +114,7 @@ void ChartPanel::onDeviceAdded(int deviceId)
     series->setName(QString("设备 %1").arg(deviceId));
 
     m_chart->addSeries(series);
-    series->attachAxis(m_axisX);      // 每条 series 都必须 attach 两个轴
+    series->attachAxis(m_axisX);
     series->attachAxis(m_axisY);
 
     m_seriesOfDevice.insert(deviceId, series);

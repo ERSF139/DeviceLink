@@ -6,7 +6,7 @@
 
 namespace {
 
-constexpr int kMaxHistory = 300;  // 1 Hz 下约 5 分
+constexpr int kMaxHistory = 300;
 
 const QStringList& headerLabels()
 {
@@ -53,8 +53,8 @@ QVariant DeviceModel::data(const QModelIndex& index, int role) const
 
     if (role == Qt::BackgroundRole) {
         switch (row.alarm.level) {
-        case Alarm::Level::Warning:  return QColor(255, 243, 205);   // 浅黄
-        case Alarm::Level::Critical: return QColor(255, 214, 214);   // 浅红
+        case Alarm::Level::Warning:  return QColor(255, 243, 205);//黄
+        case Alarm::Level::Critical: return QColor(255, 214, 214);//红
         case Alarm::Level::Normal:   break;
         }
         return QVariant();
