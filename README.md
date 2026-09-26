@@ -30,23 +30,38 @@
 
 **测试**
 
-- Qt Test 编写 38 个单元测试，接入 CTest，覆盖逐字节喂入、超长长度字段、CRC 位翻转、前置垃圾数据等边界场景
+- Qt Test 编写 38 个单元测试（5 个测试程序），接入 CTest，覆盖逐字节喂入、超长长度字段、CRC 位翻转、前置垃圾数据等边界场景
 
-## 计划中
+**跨平台**
 
-- Linux（Ubuntu）下编译运行验证
+- Windows 与 Linux 均已编译通过、全部测试通过，并完成模拟器与客户端联调
+
+| 平台 | Qt | 编译器 |
+| --- | --- | --- |
+| Windows 10 | 6.11.1 MinGW 64-bit | MinGW-w64 g++ 13.1 |
+| CentOS Stream 10 | 6.10.1（系统软件源） | GCC 14.4 |
 
 ## 构建
 
-需要 Qt 6.5 及以上（开发环境为 Qt 6.11.1 MinGW 64-bit），组件：Core、Gui、Widgets、Network、Charts、Sql、Test。
+需要 Qt 6.5 及以上、支持 C++17 的编译器、CMake 3.19 及以上，Qt 组件：Core、Gui、Widgets、Network、Charts、Sql、Test。
+
+Linux（CentOS Stream 10）安装依赖：
 
 ```bash
-cmake -S . -B build
+sudo dnf install -y qt6-qtbase-devel qt6-qtcharts-devel
+```
+
+配置、编译与测试（Windows 上若 Qt 不在默认路径，需额外指定 `-DCMAKE_PREFIX_PATH=<Qt 安装目录>`）：
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-产物为 `simulator` 与 `client` 两个可执行文件。先运行模拟器并开始监听（默认端口 9000），再运行客户端连接。
+产物位于 `build/bin/`，包括 `simulator`、`client` 与测试程序。先运行模拟器并开始监听（默认端口 9000），再运行客户端连接。Linux 下两个图形程序需在桌面会话的终端中运行。
+
+客户端数据库位置：Windows 为 `%APPDATA%\client\devicelink.db`，Linux 为 `~/.local/share/client/devicelink.db`。
 
 ## 目录结构
 
