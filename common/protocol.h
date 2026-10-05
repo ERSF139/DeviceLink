@@ -35,6 +35,10 @@ struct Frame
 quint16 crc16(const QByteArray& data);
 quint16 readUint16BE(const QByteArray& data, int offset);
 
+// 版本 0x01 中每种类型的载荷长度是固定的；未知类型返回空。
+// 解析器读完 6 字节帧头就用它判断真假，不必等到整帧到齐。
+std::optional<int> expectedPayloadSize(quint8 type);
+
 QByteArray           buildFrame(MessageType type, const QByteArray& payload);
 std::optional<Frame> parseFrame(const QByteArray& frame);
 

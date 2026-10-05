@@ -73,10 +73,17 @@ std::optional<Protocol::Frame> FrameParser::nextFrame()
             continue;                       // 长度可能又不够了，重新来一轮
         }
 
-        // 缓冲区现在以帧头开头
+        // 缓冲区现在以帧头开头。帧头 6 字节已经到齐（上面保证至少有 kMinFrameSize 字节），
+        // 先用帧头判断真假：版本不对、类型未知、长度和类型对不上，都立刻拒绝，
+        // 不要为一个假帧头等上最多 4104 字节。
         const int payloadSize = Protocol::readUint16BE(m_buffer, 4);
+        const auto expectedSize =
+            Protocol::expectedPayloadSize(static_cast<quint8>(m_buffer.at(3)));
 
-        if (payloadSize > Protocol::kMaxPayloadSize) {
+        if (static_cast<quint8>(m_buffer.at(2)) != Protocol::kVersion
+            || !expectedSize || *expectedSize != payloadSize
+            || payloadSize > Protocol::kMaxPayloadSize) {
+            ++m_badFrameCount;
             discardOneByte();               // 假帧头，滑一个字节继续找
             continue;
         }

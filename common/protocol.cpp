@@ -18,6 +18,19 @@ quint16 readUint16BE(const QByteArray& data, int offset)
     return static_cast<quint16>((high << 8) | low);
 }
 
+std::optional<int> expectedPayloadSize(quint8 type)
+{
+    switch (static_cast<MessageType>(type)) {
+    case MessageType::Sample:
+        return kSamplePayloadSize;
+    case MessageType::Heartbeat:
+        return 0;
+    case MessageType::Unknown:
+        break;
+    }
+    return std::nullopt;
+}
+
 quint16 crc16(const QByteArray& data)
 {
     quint16 crc = 0xFFFF;
