@@ -2,12 +2,15 @@
 
 #include "device.h"
 #include "deviceserver.h"
+#include "gatewayuplink.h"
 
 #include <algorithm>
+#include <utility>
 #include <QDateTime>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QLabel>
+#include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSpinBox>
@@ -24,9 +27,10 @@ constexpr int kDeviceCount = 5;
 SimulatorWindow::SimulatorWindow(QWidget* parent)
     : QWidget(parent)
     , m_server(new DeviceServer(this))
+    , m_uplink(new GatewayUplink(this))
 {
     setWindowTitle("DeviceLink 设备模拟器");
-    resize(760, 720);
+    resize(760, 820);
 
     buildUi();
     createDevices();
@@ -35,6 +39,13 @@ SimulatorWindow::SimulatorWindow(QWidget* parent)
             this, &SimulatorWindow::appendLog);
     connect(m_server, &DeviceServer::clientCountChanged,
             this, &SimulatorWindow::onClientCountChanged);
+    connect(m_uplink, &GatewayUplink::logMessage,
+            this, &SimulatorWindow::appendLog);
+    connect(m_uplink, &GatewayUplink::connectedCountChanged, this, [this](int count) {
+        m_gatewayStatusLabel->setText(QString("%1 / %2").arg(count).arg(m_devices.size()));
+    });
+    connect(m_gatewayButton, &QPushButton::clicked,
+            this, &SimulatorWindow::onGatewayClicked);
 
     connect(m_toggleAllButton, &QPushButton::clicked,
             this, &SimulatorWindow::onToggleAllClicked);
@@ -101,8 +112,24 @@ void SimulatorWindow::buildUi()
     serverForm->addRow("已连接客户端：", m_clientCountLabel);
     serverForm->addRow(m_listenButton);
 
-    auto* serverGroup = new QGroupBox("网络服务", this);
+    auto* serverGroup = new QGroupBox("网络服务（直连模式：客户端连到模拟器）", this);
     serverGroup->setLayout(serverForm);
+
+    m_gatewayHostEdit = new QLineEdit("127.0.0.1", this);
+    m_gatewayPortSpinBox = new QSpinBox(this);
+    m_gatewayPortSpinBox->setRange(1024, 65535);
+    m_gatewayPortSpinBox->setValue(9100);
+    m_gatewayStatusLabel = new QLabel("未连接", this);
+    m_gatewayButton      = new QPushButton("连接网关", this);
+
+    auto* gatewayForm = new QFormLayout;
+    gatewayForm->addRow("网关地址：",       m_gatewayHostEdit);
+    gatewayForm->addRow("设备端口：",       m_gatewayPortSpinBox);
+    gatewayForm->addRow("已连上的设备：",   m_gatewayStatusLabel);
+    gatewayForm->addRow(m_gatewayButton);
+
+    auto* gatewayGroup = new QGroupBox("LinkGate 网关（网关模式：每台设备一条连接连到网关）", this);
+    gatewayGroup->setLayout(gatewayForm);
 
     m_logEdit = new QPlainTextEdit(this);
     m_logEdit->setReadOnly(true);
@@ -111,6 +138,7 @@ void SimulatorWindow::buildUi()
     auto* layout = new QVBoxLayout(this);
     layout->addWidget(deviceGroup);
     layout->addWidget(serverGroup);
+    layout->addWidget(gatewayGroup);
     layout->addWidget(m_logEdit, 1);
 }
 
@@ -125,6 +153,8 @@ void SimulatorWindow::createDevices()
                 this, &SimulatorWindow::onSampleGenerated);
         connect(device, &Device::sampleGenerated,
                 m_server, &DeviceServer::broadcastSample);
+        connect(device, &Device::sampleGenerated,
+                m_uplink, &GatewayUplink::sendSample);
         m_deviceTable->item(i, 0)->setText(device->name());
         refreshStatusCell(i);
     }
@@ -209,6 +239,29 @@ void SimulatorWindow::onListenClicked()
             m_listenButton->setText("停止监听");
         }
     }
+}
+
+void SimulatorWindow::onGatewayClicked()
+{
+    if (m_uplink->isActive()) {
+        m_uplink->stop();
+        m_gatewayHostEdit->setEnabled(true);
+        m_gatewayPortSpinBox->setEnabled(true);
+        m_gatewayButton->setText("连接网关");
+        m_gatewayStatusLabel->setText("未连接");
+        return;
+    }
+
+    QList<int> ids;
+    for (const Device* device : std::as_const(m_devices))
+        ids.append(device->id());
+
+    m_uplink->start(m_gatewayHostEdit->text().trimmed(),
+                    static_cast<quint16>(m_gatewayPortSpinBox->value()), ids);
+    m_gatewayHostEdit->setEnabled(false);
+    m_gatewayPortSpinBox->setEnabled(false);
+    m_gatewayButton->setText("断开网关");
+    m_gatewayStatusLabel->setText(QString("0 / %1").arg(ids.size()));
 }
 
 void SimulatorWindow::onClientCountChanged(int count)

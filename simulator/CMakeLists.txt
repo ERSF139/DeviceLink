@@ -5,6 +5,8 @@ qt_add_executable(simulator
     device.cpp
     deviceserver.h
     deviceserver.cpp
+    gatewayuplink.h
+    gatewayuplink.cpp
     simulatorwindow.h
     simulatorwindow.cpp
 )

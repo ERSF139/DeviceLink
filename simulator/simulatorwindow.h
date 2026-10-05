@@ -7,7 +7,9 @@
 #include <QWidget>
 
 class Device;
+class GatewayUplink;
 class QLabel;
+class QLineEdit;
 class QPushButton;
 class DeviceServer;
 class QPlainTextEdit;
@@ -31,6 +33,7 @@ private:
     void onInjectSpikeClicked();
     void onResetValuesClicked();
     void onListenClicked();
+    void onGatewayClicked();
     void onClientCountChanged(int count);
     void appendLog(const QString& text);
 
@@ -40,6 +43,7 @@ private:
 
     QList<Device*> m_devices;
     DeviceServer* m_server;
+    GatewayUplink* m_uplink;
 
     QTableWidget* m_deviceTable;
     QPushButton*  m_toggleAllButton;
@@ -50,6 +54,12 @@ private:
     QSpinBox*       m_portSpinBox;
     QPushButton*    m_listenButton;
     QLabel*         m_clientCountLabel;
+
+    QLineEdit*      m_gatewayHostEdit;
+    QSpinBox*       m_gatewayPortSpinBox;
+    QPushButton*    m_gatewayButton;
+    QLabel*         m_gatewayStatusLabel;
+
     QPlainTextEdit* m_logEdit;
 };
 
