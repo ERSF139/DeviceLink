@@ -63,6 +63,8 @@ ctest --test-dir build --output-on-failure
 
 客户端数据库位置：Windows 为 `%APPDATA%\client\devicelink.db`，Linux 为 `~/.local/share/client/devicelink.db`。
 
+大规模接入时，设备与客户端都连接 LinkGate 网关，连接数从 N×M 降为 N+M。模拟器通过「连接网关」接入。
+
 ## 目录结构
 
 ```
